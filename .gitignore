@@ -5,3 +5,7 @@ __pycache__
 *.egg*
 node_modules/
 *.log
+gpt-oss-mcp-server/uv.lock
+uv.lock
+gpt-oss-mcp-server/scratch.py
+.env
