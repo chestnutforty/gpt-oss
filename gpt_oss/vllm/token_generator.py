@@ -29,7 +29,18 @@ class TokenGenerator:
         last_token_id = []
         while self.engine.has_unfinished_requests():
             step_outputs = self.engine.step()
-            output = step_outputs[0].outputs[0]
+            # Find the output for our specific request_id
+            request_output = None
+            for output in step_outputs:
+                if output.request_id == request_id:
+                    request_output = output
+                    break
+
+            # If our request is not in this step's outputs, continue to next step
+            if request_output is None:
+                continue
+
+            output = request_output.outputs[0]
             token_ids = output.token_ids
             logprobs_list = output.logprobs if hasattr(output, "logprobs") else None
             new_token_ids = token_ids[len(last_token_id):]
@@ -44,4 +55,4 @@ class TokenGenerator:
                 else:
                     yield token_id
                 if stop_tokens is not None and token_id in stop_tokens:
-                    break
+                    return
