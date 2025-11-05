@@ -34,7 +34,7 @@ class ResponsesSampler(SamplerBase):
     def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
         return {"role": role, "content": content}
 
-    def __call__(self, message_list: MessageList) -> SamplerResponse:
+    def __call__(self, message_list: MessageList, tools: list[dict[str, Any]] = []) -> SamplerResponse:
         if self.developer_message:
             message_list = [
                 self._pack_message("developer", self.developer_message)
@@ -47,6 +47,7 @@ class ResponsesSampler(SamplerBase):
                     "input": message_list,
                     "temperature": self.temperature,
                     "max_output_tokens": self.max_tokens,
+                    "tools": tools,
                 }
                 if self.reasoning_model:
                     request_kwargs["reasoning"] = (

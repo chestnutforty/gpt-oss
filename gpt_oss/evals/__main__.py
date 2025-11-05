@@ -1,12 +1,15 @@
 import argparse
 import json
+import os
 from datetime import datetime
+from pathlib import Path
 
 from . import report
 from .basic_eval import BasicEval
-from .gpqa_eval import GPQAEval
-from .aime_eval import AIME25Eval
-from .healthbench_eval import HealthBenchEval
+# from .gpqa_eval import GPQAEval
+# from .aime_eval import AIME25Eval
+# from .healthbench_eval import HealthBenchEval
+from .polymarket_eval import PolymarketEval
 from .chat_completions_sampler import (
     OPENAI_SYSTEM_MESSAGE_API,
     ChatCompletionsSampler,
@@ -48,7 +51,7 @@ def main():
         "--eval",
         type=str,
         default="gpqa,healthbench,healthbench_hard,healthbench_consensus,aime25",
-        help="Select an eval by name. Accepts a comma-separated list.",
+        help="Select an eval by name. Options: basic, gpqa, healthbench, healthbench_hard, healthbench_consensus, aime25, polymarket. Accepts a comma-separated list.",
     )
     parser.add_argument(
         "--temperature",
@@ -68,12 +71,67 @@ def main():
     parser.add_argument(
         "--examples", type=int, help="Number of examples to use (overrides default)"
     )
+    parser.add_argument(
+        "--tensor-parallel-size",
+        type=int,
+        default=2,
+        help="Tensor parallel size for VLLM sampler",
+    )
+    parser.add_argument(
+        "--enable-browser",
+        action="store_true",
+        help="Enable browser tool (for VLLM sampler)",
+    )
+    parser.add_argument(
+        "--enable-python",
+        action="store_true",
+        help="Enable python tool (for VLLM sampler)",
+    )
+    parser.add_argument(
+        "--developer-message",
+        type=str,
+        help="Developer message md file in prompts/ directory",
+    )
+
+    # Polymarket eval arguments
+    parser.add_argument(
+        "--polymarket-data-path",
+        type=str,
+        default="data/polymarket_politics_resolve_nov15.jsonl",
+        help="Path to Polymarket JSONL dataset",
+    )
+    parser.add_argument(
+        "--polymarket-cutoff-types",
+        nargs="+",
+        choices=["day", "week", "month"],
+        default=["month"],
+        help="Which cutoff dates to use for Polymarket eval",
+    )
 
     args = parser.parse_args()
-
-    sampler_cls = ResponsesSampler if args.sampler == "responses" else ChatCompletionsSampler
-
+    
+    developer_message = None
+    if args.developer_message:
+        developer_message = Path(__file__).parent.parent / "prompts" / f"{args.developer_message}.md"
+        developer_message = developer_message.read_text(encoding="utf-8")
+        print(f"Developer message: {developer_message}")
+        
+    tools = []
+    if args.enable_browser:
+        tools.append({
+            "type": "web_search_preview",
+        })
+    if args.enable_python:
+        tools.append({
+            "type": "code_interpreter",
+            "container": {
+                "type": "auto"
+            }
+        })
+    
+    # Create models/samplers
     models = {}
+    sampler_cls = ResponsesSampler if args.sampler == "responses" else ChatCompletionsSampler
     for model_name in args.model.split(","):
         for reasoning_effort in args.reasoning_effort.split(","):
             models[f"{model_name}-{reasoning_effort}"] = sampler_cls(
@@ -83,6 +141,7 @@ def main():
                 temperature=args.temperature,
                 base_url=args.base_url,
                 max_tokens=131_072,
+                developer_message=developer_message,
             )
 
     print(f"Running with args {args}")
@@ -139,6 +198,12 @@ def main():
                     num_examples=num_examples,
                     n_threads=args.n_threads or 1,
                 )
+            case "polymarket":
+                return PolymarketEval(
+                    data_path=args.polymarket_data_path,
+                    num_examples=num_examples,
+                    cutoff_types=args.polymarket_cutoff_types,
+                )
             case _:
                 raise Exception(f"Unrecognized eval type: {eval_name}")
 
@@ -176,7 +241,7 @@ def main():
                 f.write(json.dumps(metrics, indent=2))
             print(f"Writing results to {result_filename}")
 
-            full_result_filename = f"/tmp/{file_stem}{debug_suffix}_allresults.json"
+            full_result_filename = f"/tmp/{file_stem}{debug_suffix}_allresults.json"            
             with open(full_result_filename, "w") as f:
                 result_dict = {
                     "score": result.score,
@@ -187,6 +252,13 @@ def main():
                 }
                 f.write(json.dumps(result_dict, indent=2))
                 print(f"Writing all results to {full_result_filename}")
+            
+            local_result_path = f"results/{file_stem}{debug_suffix}_allresults.json"
+            if not os.path.exists(local_result_path):
+                os.makedirs(os.path.dirname(local_result_path), exist_ok=True)
+            with open(local_result_path, "w") as f:
+                f.write(json.dumps(result_dict, indent=2))
+                print(f"Writing all results to {local_result_path}")
 
             mergekey2resultpath[f"{file_stem}"] = result_filename
 
