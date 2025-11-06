@@ -9,3 +9,5 @@ gpt-oss-mcp-server/uv.lock
 uv.lock
 gpt-oss-mcp-server/scratch.py
 .env
+scratch.py
+results/
