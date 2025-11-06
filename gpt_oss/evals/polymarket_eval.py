@@ -231,7 +231,7 @@ Description and Resolution Criteria:
 
             # Construct conversation
             convo = actual_queried_prompt_messages + [
-                dict(content=response_text, role="assistant")
+                dict(role="assistant", content=response_text)
             ]
 
             # Store metadata
