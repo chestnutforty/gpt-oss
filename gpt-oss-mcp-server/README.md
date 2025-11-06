@@ -22,6 +22,11 @@ mcp run -t sse browser_server.py:mcp
 mcp run -t sse python_server.py:mcp
 ```
 
+```bash
+# Run vllm server
+vllm serve openai/gpt-oss-20b   --tool-server 127.0.0.1:8001,127.0.0.1:8002 --tool-call-parser openai --reasoning-parser openai_gptoss --enable-auto-tool-choice
+```
+
 You can now use MCP inspector to play with the tools.
 Once opened, set SSE to `http://localhost:8001/sse` and `http://localhost:8000/sse` respectively.
 
