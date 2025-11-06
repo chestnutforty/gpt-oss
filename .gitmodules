@@ -1,0 +1,9 @@
+[submodule "mcp-servers/mcp-wikipedia"]
+	path = mcp-servers/mcp-wikipedia
+	url = https://github.com/chestnutforty/mcp-wikipedia.git
+[submodule "mcp-servers/mcp-browser"]
+	path = mcp-servers/mcp-browser
+	url = https://github.com/chestnutforty/mcp-browser.git
+[submodule "mcp-servers/mcp-python"]
+	path = mcp-servers/mcp-python
+	url = https://github.com/chestnutforty/mcp-python.git
