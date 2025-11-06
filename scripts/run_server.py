@@ -49,19 +49,31 @@ def main():
     # Get the script path relative to the repo root
     repo_root = Path(__file__).parent.parent
     server_script = repo_root / SERVERS[server_name]
+    server_dir = server_script.parent
 
     if not server_script.exists():
         print(f"Error: Server script not found at {server_script}")
         sys.exit(1)
 
+    # Check for venv in the server directory
+    venv_mcp = server_dir / ".venv" / "bin" / "fastmcp"
+    if not venv_mcp.exists():
+        print(f"Error: MCP executable not found at {venv_mcp}")
+        print(f"Please run './scripts/install_all.sh' first to install dependencies.")
+        sys.exit(1)
+
     port = PORT_INFO[server_name]
     print(f"Starting {server_name} MCP server on port {port}...")
     print(f"Script: {server_script}")
+    print(f"Using MCP: {venv_mcp}")
     print("-" * 50)
 
-    # Run the server
+    # Run the server using mcp run -t sse --port <port>
     try:
-        subprocess.run([sys.executable, str(server_script)], check=True)
+        subprocess.run(
+            [str(venv_mcp), "run", "--port", str(port), f"{server_script}"],
+            check=True
+        )
     except KeyboardInterrupt:
         print(f"\n{server_name} server stopped.")
     except subprocess.CalledProcessError as e:
