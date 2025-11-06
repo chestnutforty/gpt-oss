@@ -13,6 +13,9 @@ Available servers:
 import sys
 import subprocess
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 # Map server names to their entry point scripts
 SERVERS = {

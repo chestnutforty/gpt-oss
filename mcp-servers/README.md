@@ -25,6 +25,13 @@ This directory contains Model Context Protocol (MCP) servers for GPT-OSS. Each s
 - **Use Cases**: Mathematical computations, data analysis, algorithm testing
 - **Dependencies**: Requires main `gpt-oss` package and Docker
 
+### Template
+- **Repository**: `mcp-template/`
+- **Description**: Minimal template for creating new MCP servers
+- **Key Features**: Simple single-file structure, example tool, quick start guide
+- **Use Cases**: Starting point for building custom MCP tools
+- **Note**: This is a template, not a runnable server
+
 ## Installation
 
 ### Install All Servers

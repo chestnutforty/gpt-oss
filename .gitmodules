@@ -7,3 +7,6 @@
 [submodule "mcp-servers/mcp-python"]
 	path = mcp-servers/mcp-python
 	url = https://github.com/chestnutforty/mcp-python.git
+[submodule "mcp-servers/mcp-template"]
+	path = mcp-servers/mcp-template
+	url = https://github.com/chestnutforty/mcp-template.git
