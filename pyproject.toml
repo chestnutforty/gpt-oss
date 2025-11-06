@@ -18,10 +18,15 @@ dependencies = [
   "requests>=2.31.0",
   "termcolor",
   "jupyter-client>=8.6.3",
+  "mcp[cli]>=1.20.0",
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 version = "0.0.8"
+
+[project.scripts]
+install-servers = "scripts.install_all:main"
+run-server = "scripts.run_server:main"
 
 [project.optional-dependencies]
 triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
@@ -36,7 +41,7 @@ build-backend = "gpt_oss_build_backend.backend"
 backend-path = ["_build"]
 
 [tool.setuptools.packages.find]
-include = ["gpt_oss*"]
+include = ["gpt_oss*", "scripts*"]
 
 [tool.scikit-build]
 cmake.source-dir = "." # pick up the root CMakeLists.txt
@@ -46,4 +51,4 @@ cmake.args = [
   "-DBUILD_SHARED_LIBS=OFF",
 ]
 [tool.scikit-build.wheel]
-packages = ["gpt_oss"] # copy the whole Python package tree
+packages = ["gpt_oss", "scripts"] # copy the whole Python package tree
