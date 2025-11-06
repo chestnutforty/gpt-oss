@@ -181,11 +181,7 @@ response = client.responses.create(
         "summary": "detailed"  # "auto", "concise", or "detailed"
     },
     temperature=1.0,
-    max_output_tokens=4096,
-    # include=[
-    #     "code_interpreter_call.outputs",
-    #     "web_search_call.action.sources"
-    # ]
+    max_output_tokens=4096
 )
 
 # Display the response in a nice format
