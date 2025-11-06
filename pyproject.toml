@@ -18,7 +18,7 @@ dependencies = [
   "requests>=2.31.0",
   "termcolor",
   "jupyter-client>=8.6.3",
-  "mcp[cli]>=1.20.0",
+  "fastmcp>=2.13.0.2",
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
