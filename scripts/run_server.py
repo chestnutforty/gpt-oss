@@ -68,10 +68,10 @@ def main():
     print(f"Using MCP: {venv_mcp}")
     print("-" * 50)
 
-    # Run the server using mcp run -t sse --port <port>
+    # Run the server using fastmcp run -t sse --port <port>
     try:
         subprocess.run(
-            [str(venv_mcp), "run", "--port", str(port), f"{server_script}"],
+            [str(venv_mcp), "run", "-t", "sse", "--port", str(port), f"{server_script}"],
             check=True
         )
     except KeyboardInterrupt:
