@@ -19,6 +19,7 @@ dependencies = [
   "termcolor",
   "jupyter-client>=8.6.3",
   "fastmcp>=2.13.0.2",
+  "openai>=2.7.0",
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
