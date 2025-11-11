@@ -46,12 +46,15 @@ class MCPClientManager:
 
         self._connected = True
 
-    async def get_tools_schema(self) -> list[dict]:
+    async def get_tools_schema(self, format: str = "responses") -> list[dict]:
         """
         Get OpenAI-compatible tool schemas from all connected servers.
 
+        Args:
+            format: "responses" or "chat_completions"
+
         Returns:
-            List of tool schemas in OpenAI function calling format
+            List of tool schemas in the requested format
         """
         if not self._connected:
             raise RuntimeError("Must call connect() before getting tools")
@@ -60,12 +63,24 @@ class MCPClientManager:
         for client in self.clients.values():
             tools = await client.list_tools()
             for tool in tools:
-                tool_schema = {
-                    "type": "function",
-                    "name": tool.name,
-                    "description": tool.description or "",
-                    "parameters": tool.inputSchema or {"type": "object", "properties": {}},
-                }
+                if format == "chat_completions":
+                    # Chat Completions API format (nested)
+                    tool_schema = {
+                        "type": "function",
+                        "function": {
+                            "name": tool.name,
+                            "description": tool.description or "",
+                            "parameters": tool.inputSchema or {"type": "object", "properties": {}},
+                        }
+                    }
+                else:
+                    # Responses API format (flat)
+                    tool_schema = {
+                        "type": "function",
+                        "name": tool.name,
+                        "description": tool.description or "",
+                        "parameters": tool.inputSchema or {"type": "object", "properties": {}},
+                    }
                 all_tools.append(tool_schema)
 
         return all_tools

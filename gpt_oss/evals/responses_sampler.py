@@ -152,7 +152,7 @@ class ResponsesSampler(SamplerBase):
         mcp_tools = None
         if self.mcp_servers:
             self._run_async(self._ensure_mcp_connected())
-            mcp_tools = self._run_async(self.mcp_manager.get_tools_schema())
+            mcp_tools = self._run_async(self.mcp_manager.get_tools_schema(format="responses"))
 
         all_tools = self.internal_tools + tools
         if mcp_tools:
