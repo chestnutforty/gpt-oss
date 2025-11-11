@@ -120,8 +120,8 @@ def message_to_html(message: Message) -> str:
     Generate HTML snippet (inside a <div>) for a message.
     """
     return jinja_env.from_string(_message_template).render(
-        role=message["role"],
-        content=message["content"],
+        role=message.get("role", message.get("type", None)),
+        content=message.get("content", ""),
         variant=message.get("variant", None),
     )
 
