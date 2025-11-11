@@ -25,13 +25,13 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-oss-120b,gpt-oss-20b",
+        default="gpt-oss-20b",
         help="Select a model by name. Accepts a comma-separated list.",
     )
     parser.add_argument(
         "--reasoning-effort",
         type=str,
-        default="low,medium,high",
+        default="medium",
         help="Reasoning effort (low, medium, high). Accepts a comma-separated list.",
     )
     parser.add_argument(
@@ -78,14 +78,19 @@ def main():
         help="Tensor parallel size for VLLM sampler",
     )
     parser.add_argument(
-        "--enable-browser",
-        action="store_true",
-        help="Enable browser tool (for VLLM sampler)",
+        "--mcp",
+        default="wikipedia",
+        help="Comma-separated list of MCP tools (wikipedia, browser, python).",
     )
     parser.add_argument(
-        "--enable-python",
+        "--enable-internal-browser",
         action="store_true",
-        help="Enable python tool (for VLLM sampler)",
+        help="Enable internal browser tool (web_search) handled by API server",
+    )
+    parser.add_argument(
+        "--enable-internal-python",
+        action="store_true",
+        help="Enable internal python tool (code_interpreter) handled by API server",
     )
     parser.add_argument(
         "--developer-message",
@@ -116,18 +121,16 @@ def main():
         developer_message = developer_message.read_text(encoding="utf-8")
         print(f"Developer message: {developer_message}")
         
-    tools = []
-    if args.enable_browser:
-        tools.append({
-            "type": "web_search_preview",
-        })
-    if args.enable_python:
-        tools.append({
-            "type": "code_interpreter",
-            "container": {
-                "type": "auto"
-            }
-        })
+    # Build list of MCP servers to connect to
+    mcp_servers = []
+    if args.mcp:
+        mcp_servers = args.mcp.split(",")
+        mcp_servers = [{
+            "wikipedia": ("wikipedia", 8003),
+            "browser": ("browser", 8001),
+            "python": ("python", 8002),
+        }[mcp_server] for mcp_server in mcp_servers]
+        print(f"MCP servers: {mcp_servers}")
     
     # Create models/samplers
     models = {}
@@ -142,6 +145,9 @@ def main():
                 base_url=args.base_url,
                 max_tokens=131_072,
                 developer_message=developer_message,
+                mcp_servers=mcp_servers if mcp_servers else None,
+                enable_internal_browser=args.enable_internal_browser,
+                enable_internal_python=args.enable_internal_python,
             )
 
     print(f"Running with args {args}")
