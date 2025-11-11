@@ -31,9 +31,9 @@ VALID_EXECUTION_BACKENDS = {
     "dangerously_use_local_jupyter",
 }
 
-_default_backend = os.environ.get("PYTHON_EXECUTION_BACKEND", "docker")
+_default_backend = os.environ.get("PYTHON_EXECUTION_BACKEND", "dangerously_use_uv")
 if _default_backend not in VALID_EXECUTION_BACKENDS:
-    _default_backend = "docker"
+    _default_backend = "dangerously_use_uv"
 
 PYTHON_EXECUTION_BACKEND = _default_backend
 
