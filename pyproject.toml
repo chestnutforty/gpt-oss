@@ -20,6 +20,8 @@ dependencies = [
   "jupyter-client>=8.6.3",
   "fastmcp>=2.13.0.2",
   "openai>=2.7.0",
+  "jinja2>=3.1.6",
+  "numpy>=2.2.6",
 ]
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -28,6 +30,7 @@ version = "0.0.8"
 [project.scripts]
 install-servers = "scripts.install_all:main"
 run-server = "scripts.run_server:main"
+serve-model = "scripts.serve_model:main"
 
 [project.optional-dependencies]
 triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
