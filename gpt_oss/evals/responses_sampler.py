@@ -144,10 +144,6 @@ class ResponsesSampler(SamplerBase):
         return response, current_input
 
     def __call__(self, message_list: MessageList, tools: list[dict[str, Any]] = []) -> SamplerResponse:
-        message_list = [
-            {"role": "user", "content": "Use the python tool first to compute the year that was 10 years before 2015"}
-        ]
-
         # Get MCP tools if configured
         mcp_tools = None
         if self.mcp_servers:
