@@ -11,3 +11,4 @@ gpt-oss-mcp-server/scratch.py
 .env
 scratch.py
 results/
+data/
