@@ -79,8 +79,8 @@ def main():
     )
     parser.add_argument(
         "--mcp",
-        default="wikipedia",
-        help="Comma-separated list of MCP tools (wikipedia, browser, python).",
+        default="",
+        help="Comma-separated list of MCP tools (wikipedia,browser,python).",
     )
     parser.add_argument(
         "--enable-internal-browser",
