@@ -9,6 +9,9 @@ Available servers:
     - wikipedia (port 8003)
     - browser (port 8001)
     - python (port 8002)
+    - google-trends (port 8004)
+    - metaculus (port 8005)
+    - financial-datasets (port 8006)
 """
 import sys
 import subprocess
@@ -22,12 +25,18 @@ SERVERS = {
     "wikipedia": "mcp-servers/mcp-wikipedia/wikipedia_server.py",
     "browser": "mcp-servers/mcp-browser/browser_server.py",
     "python": "mcp-servers/mcp-python/python_server.py",
+    "google-trends": "mcp-servers/mcp-google-trends/google_trends_server.py",
+    "metaculus": "mcp-servers/mcp-metaculus/metaculus_server.py",
+    "financial-datasets": "mcp-servers/mcp-financial-datasets/financial_datasets_server.py",
 }
 
 PORT_INFO = {
     "wikipedia": 8003,
     "browser": 8001,
     "python": 8002,
+    "google-trends": 8004,
+    "metaculus": 8005,
+    "financial-datasets": 8006,
 }
 
 

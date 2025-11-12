@@ -17,7 +17,7 @@ def main():
     print()
 
     # Array of servers to install
-    servers = ["mcp-wikipedia", "mcp-browser", "mcp-python"]
+    servers = ["mcp-wikipedia", "mcp-browser", "mcp-python", "mcp-google-trends", "mcp-metaculus", "mcp-financial-datasets"]
 
     for server in servers:
         server_dir = mcp_servers_dir / server
@@ -58,12 +58,15 @@ def main():
     print("Installation complete!")
     print()
     print("To run a server, use:")
-    print("  run-server <server_name>")
+    print("  python scripts/run_server.py <server_name>")
     print()
     print("Available servers:")
     print("  - wikipedia (port 8003)")
     print("  - browser (port 8001)")
     print("  - python (port 8002)")
+    print("  - google-trends (port 8004)")
+    print("  - metaculus (port 8005)")
+    print("  - financial-datasets (port 8006)")
 
 
 if __name__ == "__main__":

@@ -10,3 +10,12 @@
 [submodule "mcp-servers/mcp-template"]
 	path = mcp-servers/mcp-template
 	url = https://github.com/chestnutforty/mcp-template.git
+[submodule "mcp-servers/mcp-google-trends"]
+	path = mcp-servers/mcp-google-trends
+	url = https://github.com/chestnutforty/mcp-google-trends.git
+[submodule "mcp-servers/mcp-metaculus"]
+	path = mcp-servers/mcp-metaculus
+	url = https://github.com/chestnutforty/mcp-metaculus.git
+[submodule "mcp-servers/mcp-financial-datasets"]
+	path = mcp-servers/mcp-financial-datasets
+	url = https://github.com/chestnutforty/mcp-financial-datasets.git

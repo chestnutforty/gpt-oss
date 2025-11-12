@@ -12,7 +12,7 @@ echo "=============================="
 echo
 
 # Array of servers to install
-SERVERS=("mcp-wikipedia" "mcp-browser" "mcp-python")
+SERVERS=("mcp-wikipedia" "mcp-browser" "mcp-python" "mcp-google-trends" "mcp-metaculus" "mcp-financial-datasets")
 
 for server in "${SERVERS[@]}"; do
     server_dir="$MCP_SERVERS_DIR/$server"
@@ -48,3 +48,6 @@ echo "Available servers:"
 echo "  - wikipedia (port 8003)"
 echo "  - browser (port 8001)"
 echo "  - python (port 8002)"
+echo "  - google-trends (port 8004)"
+echo "  - metaculus (port 8005)"
+echo "  - financial-datasets (port 8006)"
