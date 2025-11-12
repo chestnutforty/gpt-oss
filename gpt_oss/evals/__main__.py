@@ -129,6 +129,9 @@ def main():
             "wikipedia": ("wikipedia", 8003),
             "browser": ("browser", 8001),
             "python": ("python", 8002),
+            "google-trends": ("google-trends", 8004),
+            "metaculus": ("metaculus", 8005),
+            "financial-datasets": ("financial-datasets", 8006),
         }[mcp_server] for mcp_server in mcp_servers]
         print(f"MCP servers: {mcp_servers}")
     
