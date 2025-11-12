@@ -8,7 +8,6 @@ import openai
 from openai import OpenAI
 
 from .mcp_client_manager import MCPClientManager
-from harmony.python.openai_harmony import DeveloperContent, Message, Role
 from .types import MessageList, SamplerBase, SamplerResponse
 
 
