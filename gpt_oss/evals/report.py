@@ -76,6 +76,7 @@ def aggregate_results(
         htmls=htmls,
         convos=convos,
         metadata={"example_level_metadata": metadata},
+        single_eval_results=single_eval_results,
     )
 
 

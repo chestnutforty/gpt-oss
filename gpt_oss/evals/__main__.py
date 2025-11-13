@@ -56,7 +56,7 @@ def main():
     parser.add_argument(
         "--temperature",
         type=float,
-        default=1.0,
+        default=0.6,
         help="Sampling temperature",
     )
     parser.add_argument(
@@ -196,6 +196,16 @@ def main():
         for eval_name, eval_obj in evals.items():
             result = eval_obj(sampler)
             # ^^^ how to use a sampler
+            tools_metadata = {
+                "mcp_servers": [{"name": name, "port": port} for name, port in mcp_servers] if mcp_servers else [],
+                "enable_internal_browser": args.enable_internal_browser,
+                "enable_internal_python": args.enable_internal_python,
+            }
+            if result.metadata is None:
+                result.metadata = {}
+            result.metadata["tools"] = tools_metadata
+            result.metadata["developer_message"] = args.developer_message
+
             file_stem = f"{eval_name}_{model_name}_temp{args.temperature}"
             # file stem should also include the year, month, day, and time in hours and minutes
             file_stem += f"_{date_str}"
@@ -213,7 +223,20 @@ def main():
                 f.write(json.dumps(metrics, indent=2))
             print(f"Writing results to {result_filename}")
 
-            full_result_filename = f"/tmp/{file_stem}{debug_suffix}_allresults.json"            
+            single_eval_results_dict = None
+            if result.single_eval_results:
+                single_eval_results_dict = [
+                    {
+                        "score": ser.score,
+                        "metrics": ser.metrics,
+                        "html": ser.html,
+                        "convo": ser.convo,
+                        "example_level_metadata": ser.example_level_metadata,
+                    }
+                    for ser in result.single_eval_results
+                ]
+
+            full_result_filename = f"/tmp/{file_stem}{debug_suffix}_allresults.json"
             with open(full_result_filename, "w") as f:
                 result_dict = {
                     "score": result.score,
@@ -221,10 +244,11 @@ def main():
                     "htmls": result.htmls,
                     "convos": result.convos,
                     "metadata": result.metadata,
+                    "single_eval_results": single_eval_results_dict,
                 }
                 f.write(json.dumps(result_dict, indent=2))
                 print(f"Writing all results to {full_result_filename}")
-            
+
             local_result_path = f"results/{file_stem}{debug_suffix}_allresults.json"
             if not os.path.exists(local_result_path):
                 os.makedirs(os.path.dirname(local_result_path), exist_ok=True)

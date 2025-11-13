@@ -39,6 +39,7 @@ class EvalResult:
     htmls: list[str]  # strings of valid HTML
     convos: list[MessageList]  # sampled conversations
     metadata: dict[str, Any] | None  # Extra data such as rubric scores or sollen
+    single_eval_results: list["SingleEvalResult"] | None = None  # Individual evaluation results
 
 
 @dataclass
