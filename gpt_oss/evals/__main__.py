@@ -170,43 +170,6 @@ def main():
         match eval_name:
             case "basic":
                 return BasicEval()
-            case "gpqa":
-                return GPQAEval(
-                    n_repeats=1 if args.debug else 8,
-                    num_examples=num_examples,
-                    debug=debug_mode,
-                    n_threads=args.n_threads or 1,
-                )
-            case "healthbench":
-                return HealthBenchEval(
-                    grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
-                    n_threads=args.n_threads or 1,
-                    subset_name=None,
-                )
-            case "healthbench_hard":
-                return HealthBenchEval(
-                    grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
-                    n_threads=args.n_threads or 1,
-                    subset_name="hard",
-                )
-            case "healthbench_consensus":
-                return HealthBenchEval(
-                    grader_model=grading_sampler,
-                    num_examples=10 if debug_mode else num_examples,
-                    n_repeats=1,
-                    n_threads=args.n_threads or 1,
-                    subset_name="consensus",
-                )
-            case "aime25":
-                return AIME25Eval(
-                    n_repeats=1 if args.debug else 8,
-                    num_examples=num_examples,
-                    n_threads=args.n_threads or 1,
-                )
             case "polymarket":
                 return PolymarketEval(
                     data_path=args.polymarket_data_path,
