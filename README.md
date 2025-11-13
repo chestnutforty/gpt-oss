@@ -8,7 +8,7 @@ Fork of gpt-oss for running superforecasting agent evaluations on locally-hosted
 
 ```bash
 uv sync                    # Install dependencies from lockfile
-uv pip install vllm --torch-backend=auto
+uv pip install vllm==0.10.2 --torch-backend=auto
 ```
 
 ### 2. Serve Model
