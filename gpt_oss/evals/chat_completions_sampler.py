@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+import threading
 from typing import Any
 
 import openai
@@ -42,31 +43,51 @@ class ChatCompletionsSampler(SamplerBase):
         self.reasoning_effort = reasoning_effort
         self.image_format = "url"
         self.mcp_servers = mcp_servers
-        self.mcp_manager: MCPClientManager | None = None
+        # Use thread-local storage for MCP manager since it contains async objects
+        # tied to a specific event loop. Each thread needs its own instance.
+        self._thread_local = threading.local() if mcp_servers else None
 
     def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
         return {"role": str(role), "content": content}
 
     def _run_async(self, coro):
         """Run async code in sync context."""
+        # Check if there's already a running loop
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError("Cannot use _run_async from within an async context")
+        except RuntimeError:
+            pass 
+
+        # Try to get the current event loop, but be defensive about its state
         try:
             loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If loop is already running, create a new one
+            # Check if the loop is closed (can happen in worker threads)
+            if loop.is_closed():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
         except RuntimeError:
+            # No event loop in this thread, create a new one
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+
         return loop.run_until_complete(coro)
 
     async def _ensure_mcp_connected(self):
-        """Lazy connect to MCP servers."""
-        if self.mcp_servers and not self.mcp_manager:
-            self.mcp_manager = MCPClientManager(self.mcp_servers)
-            await self.mcp_manager.connect()
+        """Ensure MCP manager is connected. Uses thread-local storage for thread safety."""
+        if not self.mcp_servers:
+            return None
 
-    async def _execute_tool_loop_async(self, initial_messages: list[dict], tools: list[dict]) -> Any:
+        # Each thread gets its own MCP manager via thread-local storage
+        if not hasattr(self._thread_local, 'mcp_manager') or not self._thread_local.mcp_manager.connected:
+            print(f"[MCP] Thread {threading.get_ident()}: Connecting to servers: {self.mcp_servers}")
+            self._thread_local.mcp_manager = MCPClientManager(self.mcp_servers)
+            await self._thread_local.mcp_manager.connect()
+            print(f"[MCP] Thread {threading.get_ident()}: Connected successfully")
+
+        return self._thread_local.mcp_manager
+
+    async def _execute_tool_loop_async(self, initial_messages: list[dict], tools: list[dict], mcp_manager: MCPClientManager | None = None) -> Any:
         """Execute tools in a loop until no more tool calls."""
         current_messages = initial_messages.copy()
         max_iterations = 50
@@ -119,7 +140,7 @@ class ChatCompletionsSampler(SamplerBase):
             for tool_call in tool_calls:
                 try:
                     arguments = json.loads(tool_call.function.arguments) if isinstance(tool_call.function.arguments, str) else tool_call.function.arguments
-                    result = await self.mcp_manager.call_tool(tool_call.function.name, arguments)
+                    result = await mcp_manager.call_tool(tool_call.function.name, arguments)
                     current_messages.append({
                         "role": "tool",
                         "content": result,
@@ -146,9 +167,10 @@ class ChatCompletionsSampler(SamplerBase):
 
         # Get MCP tools if configured
         mcp_tools = None
+        mcp_manager = None
         if self.mcp_servers:
-            self._run_async(self._ensure_mcp_connected())
-            mcp_tools = self._run_async(self.mcp_manager.get_tools_schema(format="chat_completions"))
+            mcp_manager = self._run_async(self._ensure_mcp_connected())
+            mcp_tools = self._run_async(mcp_manager.get_tools_schema(format="chat_completions"))
 
         trial = 0
         while True:
@@ -156,7 +178,7 @@ class ChatCompletionsSampler(SamplerBase):
                 # Execute with tool loop if MCP tools present
                 if mcp_tools:
                     response, message_list = self._run_async(
-                        self._execute_tool_loop_async(message_list, mcp_tools)
+                        self._execute_tool_loop_async(message_list, mcp_tools, mcp_manager)
                     )
                 else:
                     if self.reasoning_model:

@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import time
+import threading
 from typing import Any
 
 import openai
@@ -38,7 +39,9 @@ class ResponsesSampler(SamplerBase):
         self.reasoning_model = reasoning_model
         self.reasoning_effort = reasoning_effort
         self.mcp_servers = mcp_servers
-        self.mcp_manager: MCPClientManager | None = None
+        # Use thread-local storage for MCP manager since it contains async objects
+        # tied to a specific event loop. Each thread needs its own instance.
+        self._thread_local = threading.local() if mcp_servers else None
 
         # Build internal tools list
         self.internal_tools = []
@@ -58,25 +61,41 @@ class ResponsesSampler(SamplerBase):
         return {"role": role, "content": content}
 
     def _run_async(self, coro):
-        """Run async code in sync context."""
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError("Cannot use _run_async from within an async context")
+        except RuntimeError:
+            pass
+
+        # Try to get the current event loop
         try:
             loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If loop is already running, create a new one
+            # Check if the loop is closed (can happen in multiprocessing workers)
+            if loop.is_closed():
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
         except RuntimeError:
+            # No event loop in this thread, create a new one
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+
         return loop.run_until_complete(coro)
 
     async def _ensure_mcp_connected(self):
-        """Lazy connect to MCP servers."""
-        if self.mcp_servers and not self.mcp_manager:
-            self.mcp_manager = MCPClientManager(self.mcp_servers)
-            await self.mcp_manager.connect()
+        """Ensure MCP manager is connected. Uses thread-local storage for thread safety."""
+        if not self.mcp_servers:
+            return None
 
-    async def _execute_tool_loop_async(self, initial_input: list[dict], tools: list[dict]) -> Any:
+        # Each thread gets its own MCP manager via thread-local storage
+        if not hasattr(self._thread_local, 'mcp_manager') or not self._thread_local.mcp_manager.connected:
+            print(f"[MCP] Thread {threading.get_ident()}: Connecting to servers: {self.mcp_servers}")
+            self._thread_local.mcp_manager = MCPClientManager(self.mcp_servers)
+            await self._thread_local.mcp_manager.connect()
+            print(f"[MCP] Thread {threading.get_ident()}: Connected successfully")
+
+        return self._thread_local.mcp_manager
+
+    async def _execute_tool_loop_async(self, initial_input: list[dict], tools: list[dict], mcp_manager: MCPClientManager | None = None) -> Any:
         """Execute tools in a loop until no more tool calls."""
         current_input = initial_input.copy()
         max_iterations = 50
@@ -116,7 +135,7 @@ class ResponsesSampler(SamplerBase):
 
             for output in response.output:
                 current_input.append(output.model_dump(mode="json"))
-                
+
             if not has_tool_calls and has_message_output:
                 return response, current_input
 
@@ -124,7 +143,7 @@ class ResponsesSampler(SamplerBase):
                 if hasattr(item, "type") and item.type == "function_call":
                     try:
                         arguments = json.loads(item.arguments) if isinstance(item.arguments, str) else item.arguments
-                        result = await self.mcp_manager.call_tool(item.name, arguments)
+                        result = await mcp_manager.call_tool(item.name, arguments)
                         current_input.append({
                             "type": "function_call_output",
                             "call_id": item.call_id,
@@ -145,9 +164,10 @@ class ResponsesSampler(SamplerBase):
     def __call__(self, message_list: MessageList, tools: list[dict[str, Any]] = []) -> SamplerResponse:
         # Get MCP tools if configured
         mcp_tools = None
+        mcp_manager = None
         if self.mcp_servers:
-            self._run_async(self._ensure_mcp_connected())
-            mcp_tools = self._run_async(self.mcp_manager.get_tools_schema(format="responses"))
+            mcp_manager = self._run_async(self._ensure_mcp_connected())
+            mcp_tools = self._run_async(mcp_manager.get_tools_schema(format="responses"))
 
         all_tools = self.internal_tools + tools
         if mcp_tools:
@@ -157,7 +177,7 @@ class ResponsesSampler(SamplerBase):
         while True:
             try:
                 response, message_list = self._run_async(
-                    self._execute_tool_loop_async(message_list, all_tools)
+                    self._execute_tool_loop_async(message_list, all_tools, mcp_manager)
                 )
 
                 return SamplerResponse(

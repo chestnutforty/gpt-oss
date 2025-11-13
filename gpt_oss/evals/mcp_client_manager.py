@@ -23,6 +23,10 @@ class MCPClientManager:
         self.tool_to_server: dict[str, str] = {}
         self._connected = False
 
+    @property
+    def connected(self) -> bool:
+        return self._connected
+
     async def connect(self):
         """Connect to all MCP servers and build tool registry."""
         if self._connected:
