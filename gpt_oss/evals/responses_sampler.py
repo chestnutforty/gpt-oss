@@ -129,9 +129,9 @@ class ResponsesSampler(SamplerBase):
                 for item in response.output
             )
 
-            print(f"Iteration {iteration}: has_tool_calls={has_tool_calls}, has_message_output={has_message_output}")
-            print(f"Output items: {[item.type for item in response.output if hasattr(item, 'type')]}")
-            print("Tool Calls:", [item for item in response.output if hasattr(item, 'type') and item.type == "function_call"])
+            # print(f"Iteration {iteration}: has_tool_calls={has_tool_calls}, has_message_output={has_message_output}")
+            # print(f"Output items: {[item.type for item in response.output if hasattr(item, 'type')]}")
+            # print("Tool Calls:", [item for item in response.output if hasattr(item, 'type') and item.type == "function_call"])
 
             for output in response.output:
                 current_input.append(output.model_dump(mode="json"))

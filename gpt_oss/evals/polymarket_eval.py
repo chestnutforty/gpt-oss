@@ -152,7 +152,7 @@ class PolymarketEval(Eval):
 
                 self.examples.append(example)
 
-    def __call__(self, sampler: SamplerBase) -> EvalResult:
+    def __call__(self, sampler: SamplerBase, checkpoint_path=None) -> EvalResult:
         def fn(row: dict):
             # Format user message from template
             user_message = f"""Question:
@@ -253,8 +253,12 @@ Description and Resolution Criteria:
                 example_level_metadata=example_level_metadata,
             )
 
-        # Run evaluation in parallel
-        results = report.map_with_progress(fn, self.examples, num_threads=32)
+        if checkpoint_path:
+            map_fn = report.with_checkpoint(checkpoint_path)(report.map_with_progress)
+            results = map_fn(fn, self.examples, num_threads=16)
+        else:
+            results = report.map_with_progress(fn, self.examples, num_threads=16)
+
         return report.aggregate_results(results)
 
     def _generate_html_report(

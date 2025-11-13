@@ -1,13 +1,17 @@
+import json
 import os
+import threading
 from collections import defaultdict
+from dataclasses import asdict
 from multiprocessing.pool import ThreadPool
+from pathlib import Path
 from typing import Any, Callable
 
 import jinja2
 import numpy as np
 from tqdm import tqdm
 
-from .types import EvalResult, Message, SingleEvalResult
+from .types import Checkpoint, EvalResult, Message, SingleEvalResult
 
 
 HTML_JINJA = """
@@ -206,3 +210,92 @@ def make_report(eval_result: EvalResult) -> str:
         metrics=eval_result.metrics,
         htmls=eval_result.htmls,
     )
+
+
+_checkpoint_lock = threading.Lock()
+
+
+def _save_checkpoint_unlocked(path: Path, checkpoint: Checkpoint):
+    """Save checkpoint to disk atomically (assumes lock is held)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_suffix(".tmp")
+    try:
+        with open(temp, "w") as f:
+            json.dump({"results": {str(k): v for k, v in checkpoint.results.items()}}, f)
+        temp.replace(path)
+    except Exception as e:
+        if temp.exists():
+            temp.unlink()
+        raise e
+
+
+def _save_checkpoint(path: Path, checkpoint: Checkpoint):
+    """Save checkpoint to disk atomically with locking."""
+    with _checkpoint_lock:
+        _save_checkpoint_unlocked(path, checkpoint)
+
+
+def _load_checkpoint(path: Path) -> Checkpoint | None:
+    """Load checkpoint from disk."""
+    if not path.exists():
+        return None
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        return Checkpoint(results={int(k): v for k, v in data["results"].items()})
+    except Exception as e:
+        print(f"Error loading checkpoint: {e}")
+        return None
+
+
+def with_checkpoint(checkpoint_path: Path | None):
+    """
+    Decorator that adds checkpoint/resume capability to map_with_progress.
+
+    Usage:
+        @with_checkpoint(Path("checkpoint.json"))
+        def process_examples(f, xs, num_threads):
+            return map_with_progress(f, xs, num_threads)
+    """
+    def decorator(map_fn):
+        def wrapper(f: Callable, xs: list[Any], num_threads: int = 128, pbar: bool = True):
+            if checkpoint_path is None:
+                # No checkpointing, use original function
+                return map_fn(f, xs, num_threads, pbar)
+
+            # Load existing checkpoint
+            checkpoint = _load_checkpoint(checkpoint_path)
+            results_by_idx = {}
+
+            if checkpoint:
+                results_by_idx = {idx: SingleEvalResult(**data) for idx, data in checkpoint.results.items()}
+                print(f"Resuming: {len(results_by_idx)}/{len(xs)} completed")
+
+            # Filter to remaining work
+            remaining = [(i, x) for i, x in enumerate(xs) if i not in results_by_idx]
+
+            if not remaining:
+                print("All examples completed!")
+                return [results_by_idx[i] for i in range(len(xs))]
+
+            # Wrapper that checkpoints after each result
+            def f_with_checkpoint(idx_and_x):
+                idx, x = idx_and_x
+                result = f(x)
+                
+                # Update dict and save checkpoint atomically
+                with _checkpoint_lock:
+                    results_by_idx[idx] = result
+                    checkpoint_data = Checkpoint(results={i: asdict(r) for i, r in results_by_idx.items()})
+                    _save_checkpoint_unlocked(checkpoint_path, checkpoint_data)
+
+                return result
+
+            # Run remaining work
+            map_fn(f_with_checkpoint, remaining, num_threads, pbar)
+
+            # Return all results in order
+            return [results_by_idx[i] for i in range(len(xs))]
+
+        return wrapper
+    return decorator

@@ -12,7 +12,7 @@ class BasicEval(Eval):
             "answer": "hi, how can i help?",
         }]
 
-    def __call__(self, sampler: SamplerBase) -> EvalResult:
+    def __call__(self, sampler: SamplerBase, checkpoint_path=None) -> EvalResult:
         def fn(row: dict):
             sampler_response = sampler([
                 sampler._pack_message(content=row["question"], role="user")
@@ -33,6 +33,11 @@ class BasicEval(Eval):
                 html=html, score=score, convo=convo, metrics={"chars": len(response_text)}
             )
 
-        results = report.map_with_progress(fn, self.examples, num_threads=1)
+        if checkpoint_path:
+            map_fn = report.with_checkpoint(checkpoint_path)(report.map_with_progress)
+            results = map_fn(fn, self.examples, num_threads=1)
+        else:
+            results = report.map_with_progress(fn, self.examples, num_threads=1)
+
         return report.aggregate_results(results)
 

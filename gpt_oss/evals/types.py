@@ -57,6 +57,15 @@ class SingleEvalResult:
     )
 
 
+@dataclass
+class Checkpoint:
+    """
+    Checkpoint state for resuming evaluations.
+    Maps example index -> serialized SingleEvalResult.
+    """
+    results: dict[int, dict[str, Any]]  # index -> serialized result
+
+
 class Eval:
     """
     Base class for defining an evaluation.

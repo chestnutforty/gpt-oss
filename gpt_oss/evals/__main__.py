@@ -97,6 +97,17 @@ def main():
         type=str,
         help="Developer message md file in prompts/ directory",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume from checkpoint if available",
+    )
+    parser.add_argument(
+        "--checkpoint-dir",
+        type=str,
+        default="checkpoints",
+        help="Directory to store evaluation checkpoints",
+    )
 
     # Polymarket eval arguments
     parser.add_argument(
@@ -191,11 +202,29 @@ def main():
 
     now = datetime.now()
     date_str = now.strftime("%Y%m%d_%H%M%S")
+
+    # Prepare checkpoint directory
+    checkpoint_dir = Path(args.checkpoint_dir)
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
     for model_name, sampler in models.items():
         model_name = model_name.replace("/", "__")
         for eval_name, eval_obj in evals.items():
-            result = eval_obj(sampler)
+            checkpoint_name = f"{eval_name}_{model_name}.json"
+            checkpoint_path = checkpoint_dir / checkpoint_name
+
+            # If not resuming, delete any existing checkpoint to start fresh
+            if not args.resume and checkpoint_path.exists():
+                checkpoint_path.unlink()
+                print(f"Starting fresh (deleted existing checkpoint)")
+
+            result = eval_obj(sampler, checkpoint_path=checkpoint_path)
             # ^^^ how to use a sampler
+
+            # Clean up checkpoint on successful completion
+            if checkpoint_path.exists():
+                checkpoint_path.unlink()
+                print(f"Checkpoint deleted: {checkpoint_path}")
             tools_metadata = {
                 "mcp_servers": [{"name": name, "port": port} for name, port in mcp_servers] if mcp_servers else [],
                 "enable_internal_browser": args.enable_internal_browser,
