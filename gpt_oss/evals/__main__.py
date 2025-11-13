@@ -210,8 +210,8 @@ def main():
     for model_name, sampler in models.items():
         model_name = model_name.replace("/", "__")
         for eval_name, eval_obj in evals.items():
-            checkpoint_name = f"{eval_name}_{model_name}.json"
-            checkpoint_path = checkpoint_dir / checkpoint_name
+            file_stem = f"{eval_name}_{model_name}_reasoning_effort_{args.reasoning_effort}_temp{args.temperature}_python_{args.enable_internal_python}_browser_{args.enable_internal_browser}_mcp_{args.mcp}"
+            checkpoint_path = checkpoint_dir / (file_stem + ".json")
 
             # If not resuming, delete any existing checkpoint to start fresh
             if not args.resume and checkpoint_path.exists():
@@ -235,7 +235,6 @@ def main():
             result.metadata["tools"] = tools_metadata
             result.metadata["developer_message"] = args.developer_message
 
-            file_stem = f"{eval_name}_{model_name}_temp{args.temperature}"
             # file stem should also include the year, month, day, and time in hours and minutes
             file_stem += f"_{date_str}"
             report_filename = f"/tmp/{file_stem}{debug_suffix}.html"
