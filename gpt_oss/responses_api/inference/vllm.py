@@ -12,6 +12,7 @@ from vllm.inputs import TokensPrompt
 
 DEFAULT_TEMPERATURE = 0.0
 TP = os.environ.get("TP", 2)
+MAX_NUM_SEQS = os.environ.get("MAX_NUM_SEQS", 32)
 
 def load_model(checkpoint: str):
     """
@@ -23,7 +24,8 @@ def load_model(checkpoint: str):
         model=checkpoint,
         tensor_parallel_size=TP,          # set >1 if you want TP across GPUs
         enable_prefix_caching=True,      # reuse KV for shared prefixes
-        disable_log_stats=True,        # uncomment to quiet logs
+        disable_log_stats=True,
+        max_num_seqs=MAX_NUM_SEQS
     )
 
     return llm
