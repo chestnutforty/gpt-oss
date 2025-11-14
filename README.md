@@ -1,7 +1,3 @@
-# GPT-OSS Superforecasting Agent
-
-Fork of gpt-oss for running superforecasting agent evaluations on locally-hosted models.
-
 ## Quick Start
 
 ### 1. Installation
