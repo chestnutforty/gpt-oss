@@ -28,6 +28,7 @@ SERVERS = {
     "google-trends": "mcp-servers/mcp-google-trends/google_trends_server.py",
     "metaculus": "mcp-servers/mcp-metaculus/metaculus_server.py",
     "financial-datasets": "mcp-servers/mcp-financial-datasets/financial_datasets_server.py",
+    "datacommons": "mcp-servers/mcp-datacommons/server.py",
 }
 
 PORT_INFO = {
@@ -37,6 +38,7 @@ PORT_INFO = {
     "google-trends": 8004,
     "metaculus": 8005,
     "financial-datasets": 8006,
+    "datacommons": 8007,
 }
 
 
