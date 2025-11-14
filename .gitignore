@@ -12,3 +12,4 @@ gpt-oss-mcp-server/scratch.py
 scratch.py
 results/
 data/
+checkpoints/
