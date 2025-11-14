@@ -19,3 +19,6 @@
 [submodule "mcp-servers/mcp-financial-datasets"]
 	path = mcp-servers/mcp-financial-datasets
 	url = https://github.com/chestnutforty/mcp-financial-datasets.git
+[submodule "mcp-servers/mcp-datacommons"]
+	path = mcp-servers/mcp-datacommons
+	url = https://github.com/chestnutforty/mcp-datacommons.git
