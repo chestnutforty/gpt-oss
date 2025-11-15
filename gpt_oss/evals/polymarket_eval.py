@@ -65,7 +65,9 @@ class PolymarketEval(Eval):
         data_path: str = "data/polymarket_politics_resolve_nov15.jsonl",
         num_examples: int | None = None,
         cutoff_types: list[str] = ["day", "week", "month"],
+        num_threads: int = 4,
     ):
+        super().__init__(num_threads)
         with open(data_path, 'r') as f:
             questions = [json.loads(line) for line in f]
 
@@ -182,9 +184,9 @@ Description and Resolution Criteria:
 
         if checkpoint_path:
             map_fn = report.with_checkpoint(checkpoint_path)(report.map_with_progress)
-            results = map_fn(fn, self.examples, num_threads=1)
+            results = map_fn(fn, self.examples, num_threads=4)
         else:
-            results = report.map_with_progress(fn, self.examples, num_threads=1)
+            results = report.map_with_progress(fn, self.examples, num_threads=4)
 
         return report.aggregate_results(results)
 

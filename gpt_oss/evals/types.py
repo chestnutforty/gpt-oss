@@ -70,6 +70,9 @@ class Eval:
     """
     Base class for defining an evaluation.
     """
+    
+    def __init__(self, num_threads: int = 4):
+        self.num_threads = num_threads
 
     def __call__(self, sampler: SamplerBase) -> EvalResult:
         raise NotImplementedError

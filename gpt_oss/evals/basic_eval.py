@@ -6,7 +6,8 @@ from . import report
 from .types import Eval, EvalResult, SamplerBase, SingleEvalResult
 
 class BasicEval(Eval):
-    def __init__(self,):
+    def __init__(self, num_threads: int = 4):
+        super().__init__(num_threads)
         self.examples = [{
             "question": "hi",
             "answer": "hi, how can i help?",
