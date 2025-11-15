@@ -46,8 +46,6 @@ class MCPClientManager:
             for tool in tools:
                 self.tool_to_server[tool.name] = name
         
-            print(tools)
-
         self._connected = True
 
     async def get_tools_schema(self, format: str = "responses") -> list[dict]:
