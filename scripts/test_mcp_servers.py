@@ -42,6 +42,7 @@ MCP_SERVERS = [
     "mcp-financial-datasets",
     "mcp-google-trends",
     "mcp-metaculus",
+    "mcp-datacommons",
 ]
 
 
