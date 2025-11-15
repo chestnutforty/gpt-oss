@@ -63,7 +63,7 @@ def main():
     parser.add_argument(
         "--n-threads",
         type=int,
-        default=1584,
+        default=4,
         help="Number of threads to run.",
     )
     parser.add_argument(
@@ -200,6 +200,7 @@ def main():
                     data_path=args.polymarket_data_path,
                     num_examples=num_examples,
                     cutoff_types=args.polymarket_cutoff_types,
+                    num_threads=args.n_threads,
                 )
             case _:
                 raise Exception(f"Unrecognized eval type: {eval_name}")
