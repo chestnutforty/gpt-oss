@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from . import report
 from .basic_eval import BasicEval
 # from .gpqa_eval import GPQAEval
@@ -16,9 +18,11 @@ from .chat_completions_sampler import (
 )
 from .responses_sampler import ResponsesSampler
 from .api_sampler import ApiSampler
+from .metaculus_eval import MetaculusEval
 
 
 def main():
+    load_dotenv()
     parser = argparse.ArgumentParser(
         description="Evaluate the models.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -129,6 +133,21 @@ def main():
         default=["month"],
         help="Which cutoff dates to use for Polymarket eval",
     )
+    
+    # Metaculus eval arguments
+    parser.add_argument(
+        "--metaculus-data-path",
+        type=str,
+        default="data/forecast_snapshot_metaculus",
+        help="Path to Metaculus dataset",
+    )
+    parser.add_argument(
+        "--metaculus-cutoff-types",
+        nargs="+",
+        choices=["1day", "3day", "1week", "2week", "1month"],
+        default=["1month"],
+        help="Which cutoff dates to use for Metaculus eval",
+    )
 
     args = parser.parse_args()
     
@@ -159,8 +178,10 @@ def main():
         sampler_cls = ResponsesSampler
     elif args.sampler == "chat_completions":
         sampler_cls = ChatCompletionsSampler
-    else:
+    elif args.sampler == "api":
         sampler_cls = ApiSampler
+    else:
+        raise ValueError(f"Invalid sampler: {args.sampler}")
 
     for model_name in args.model.split(","):
         for reasoning_effort in args.reasoning_effort.split(","):
@@ -200,6 +221,13 @@ def main():
                     data_path=args.polymarket_data_path,
                     num_examples=num_examples,
                     cutoff_types=args.polymarket_cutoff_types,
+                    num_threads=args.n_threads,
+                )
+            case "metaculus":
+                return MetaculusEval(
+                    data_path=args.metaculus_data_path,
+                    num_examples=num_examples,
+                    cutoff_types=args.metaculus_cutoff_types,
                     num_threads=args.n_threads,
                 )
             case _:

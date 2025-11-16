@@ -2,6 +2,7 @@ import asyncio
 import threading
 from typing import Any
 import os
+import traceback
 
 from openai import AsyncOpenAI
 from openai.types.shared import Reasoning
@@ -155,6 +156,8 @@ class ApiSampler(SamplerBase):
             response_text = result.final_output or ""
 
             updated_messages = result.to_input_list()
+            
+            print('response_text', response_text)
 
             return SamplerResponse(
                 response_text=response_text,
@@ -163,6 +166,7 @@ class ApiSampler(SamplerBase):
             )
         except Exception as e:
             print(f"Error during agent execution: {e}")
+            print(traceback.format_exc())
             return SamplerResponse(
                 response_text=f"Error: {str(e)}",
                 response_metadata={"usage": None, "error": str(e)},
