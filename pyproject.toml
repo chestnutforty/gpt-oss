@@ -22,7 +22,7 @@ dependencies = [
   "openai>=2.7.0",
   "jinja2>=3.1.6",
   "numpy>=2.2.6",
-  "weave>=0.52.17",
+  
   "openai-agents",
 ]
 readme = "README.md"
@@ -39,7 +39,7 @@ triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]
 torch = ["safetensors>=0.5.3", "torch>=2.7.0"]
 metal = ["numpy", "tqdm", "safetensors", "torch"]
 test = ["pytest>=8.4.1", "httpx>=0.28.1"]
-eval = ["pandas", "numpy", "openai", "jinja2", "tqdm", "blobfile", "supabase"]
+eval = ["pandas", "numpy", "openai", "jinja2", "tqdm", "blobfile", "supabase", "datasets>=4.4.1", "weave>=0.52.17"]
 
 [tool.uv.sources]
 openai-agents = { git = "https://github.com/chestnutforty/openai-agents-python.git"}
