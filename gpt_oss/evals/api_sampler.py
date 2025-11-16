@@ -3,13 +3,18 @@ import threading
 from typing import Any
 import os
 import traceback
-
+from datetime import datetime
+from dataclasses import dataclass
 from openai import AsyncOpenAI
 from openai.types.shared import Reasoning
 from agents import Agent, Runner, ModelSettings, set_default_openai_client, set_default_openai_api, set_tracing_disabled
 from agents.mcp import MCPServerSse
 
 from .types import MessageList, SamplerBase, SamplerResponse
+
+@dataclass
+class AgentEvalContext:
+    cutoff_date: str = datetime.now().strftime("%Y-%m-%d")
 
 
 class ApiSampler(SamplerBase):
@@ -71,7 +76,7 @@ class ApiSampler(SamplerBase):
 
         self._thread_local = threading.local() if mcp_servers else None
 
-        set_tracing_disabled(True)
+        set_tracing_disabled(False)
         set_default_openai_client(self.client)
         set_default_openai_api("responses")
         
@@ -132,7 +137,7 @@ class ApiSampler(SamplerBase):
 
         return instructions, user_prompt
 
-    async def _execute_async(self, message_list: MessageList) -> SamplerResponse:
+    async def _execute_async(self, message_list: MessageList, context: AgentEvalContext) -> SamplerResponse:
         mcp_servers = await self._ensure_mcp_connected()
 
         instructions, user_prompt = self._convert_messages(message_list)
@@ -140,10 +145,11 @@ class ApiSampler(SamplerBase):
         # Reasoning model settings
         model_settings = ModelSettings()
         if self.reasoning_model and self.reasoning_effort:
-            model_settings = ModelSettings(reasoning=Reasoning(effort=self.reasoning_effort))
+            model_settings = ModelSettings(reasoning=Reasoning(effort=self.reasoning_effort, summary='detailed'))
+            
 
         agent = Agent(
-            name="Assistant",
+            name=f'model_{self.model}_mcp_{','.join([name for name, _ in self.mcp_server_configs])}_tools_{','.join([tool.__class__.__name__ for tool in self.tools])}',
             instructions=instructions,
             model=self.model,
             mcp_servers=mcp_servers,
@@ -152,7 +158,7 @@ class ApiSampler(SamplerBase):
         )
         
         try:
-            result = await Runner.run(agent, user_prompt, max_turns=200)
+            result = await Runner.run(agent, user_prompt, max_turns=200, context=context)
             response_text = result.final_output or ""
 
             updated_messages = result.to_input_list()
@@ -173,5 +179,9 @@ class ApiSampler(SamplerBase):
                 actual_queried_message_list=message_list,
             )
 
-    def __call__(self, message_list: MessageList) -> SamplerResponse:
-        return self._run_async(self._execute_async(message_list))
+    def __call__(self, message_list: MessageList, cutoff_date: str = None) -> SamplerResponse:
+        if cutoff_date:
+            context = AgentEvalContext(cutoff_date=cutoff_date)
+        else:
+            context = AgentEvalContext()
+        return self._run_async(self._execute_async(message_list, context))
