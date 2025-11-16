@@ -176,7 +176,6 @@ def calculate_multiple_choice_log_score(option_probs: dict[str, float], correct_
     else:
         normalized_probs = {k: v / total for k, v in option_probs.items()}
 
-    # Get probability assigned to correct outcome
     p_correct = normalized_probs.get(correct_outcome, 0.0)
 
     # Clip to avoid log(0)
@@ -219,15 +218,12 @@ def calculate_numeric_log_score(
         "open_upper_bound": open_upper_bound,
     }
 
-    # Convert percentiles to Metaculus format
     percentiles_dict = convert_agent_percentiles_to_metaculus_format(percentiles_raw)
 
-    # Validate and get boundary probabilities
     below_lower_bound, above_upper_bound = validate_and_get_boundary_probabilities(
         percentiles_raw, range_min, range_max
     )
 
-    # Generate CDF
     cdf_y_values = generate_continuous_cdf(
         percentiles_dict,
         question_data,
@@ -235,13 +231,10 @@ def calculate_numeric_log_score(
         above_upper_bound=above_upper_bound,
     )
 
-    # Standardize CDF
     cdf_y_values = standardize_cdf(cdf_y_values, question_data)
 
-    # Generate x-axis
     cdf_x_values = generate_cdf_x_axis(question_data, num_points=201)
 
-    # Calculate log score
     log_score, _ = calculate_log_score_from_cdf(
         cdf_y_values, cdf_x_values, resolution, question_data
     )
@@ -253,23 +246,19 @@ class MetaculusEval(Eval):
 
     def __init__(
         self,
-        data_path: str = "/home/benediktstroebl/art-agent/gpt_oss_agent/gpt-oss/data/forecast_snapshot_metaculus",
+        data_path: str = "data/forecast_snapshot_metaculus",
         num_examples: int | None = None,
         cutoff_types: list[str] = ["1day", "3day", "1week", "2week", "1month"],
         num_threads: int = 4,
     ):
         super().__init__(num_threads)
 
-        # Load dataset from disk
         dataset = load_from_disk(data_path)
 
         # Convert to list of dicts
         questions = []
         for item in dataset:
             questions.append(dict(item))
-
-        # Filter out discrete questions
-        questions = [q for q in questions if q["question_type"] != "discrete"]
 
         # Filter out unresolved questions
         filtered_questions = []
@@ -283,7 +272,7 @@ class MetaculusEval(Eval):
 
             elif question_type == "multiple_choice":
                 # Keep only if outcome is not null
-                if q.get("outcome") is not None:
+                if q.get("outcome") is not None and q.get("outcomes") is not None:
                     filtered_questions.append(q)
 
             elif question_type == "numeric":
@@ -352,9 +341,7 @@ class MetaculusEval(Eval):
                 elif question["question_type"] == "multiple_choice":
                     example["outcome"] = question["outcome"]
                     example["resolution"] = question["resolution"]
-                    # Try to extract possible outcomes from the question or use resolution as hint
-                    # For now, we'll need to extract from response
-                    example["possible_outcomes"] = None  # Will be populated during eval if needed
+                    example["outcomes"] = question["outcomes"]
 
                 elif question["question_type"] == "numeric":
                     example["resolution_numeric"] = float(question["resolution_numeric"])
@@ -369,7 +356,6 @@ class MetaculusEval(Eval):
 
     def __call__(self, sampler: SamplerBase, checkpoint_path=None) -> EvalResult:
         def fn(row: dict):
-            # Build prompt
             user_message = f"""Question:
 {row['question']}
 
@@ -383,7 +369,7 @@ Question Type:
 {row['question_type']}
 """
             if row['question_type'] == 'multiple_choice':
-                user_message += f"""\n\nPossible Options:\n{row['possible_outcomes']}"""
+                user_message += f"""\n\nPossible Options:\n{row['outcomes']}"""
                 
             if row['question_type'] == 'numeric':
                 if not row['open_lower_bound']:
@@ -401,7 +387,6 @@ Question Type:
             metrics = {}
             prediction = None
 
-            # Extract prediction and calculate metrics based on question type
             if question_type == "binary":
                 point_estimate = extract_binary_probability(response_text)
                 prediction = point_estimate
@@ -423,11 +408,7 @@ Question Type:
                     score = -10.0
 
             elif question_type == "multiple_choice":
-                # For multiple choice, we need to know possible outcomes
-                # Extract from response or use known outcome
                 correct_outcome = row["outcome"]
-
-                # Extract probabilities using the new \prediction{} format
                 option_probs = extract_multiple_choice_probabilities(response_text, [correct_outcome])
 
                 prediction = option_probs
@@ -477,7 +458,6 @@ Question Type:
                     metrics["log_score"] = -10.0
                     score = -10.0
 
-            # Generate HTML report
             html = self._generate_html_report(
                 row=row,
                 response_text=response_text,
