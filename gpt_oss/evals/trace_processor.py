@@ -80,7 +80,7 @@ class LocalJSONTracingProcessor(TracingProcessor):
             output_dir: Directory to store trace JSON files. Defaults to "agent_traces".
         """
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self._trace_data: dict[str, dict[str, Any]] = {}
         self._span_data: dict[str, dict[str, Any]] = {}
@@ -126,7 +126,7 @@ class LocalJSONTracingProcessor(TracingProcessor):
         trace.trace_data = trace_data
 
         # Write trace to JSON file
-        self._write_trace_to_file(tid, trace_data)
+        # self._write_trace_to_file(tid, trace_data)
 
     def _agent_log_data(self, span: Span[AgentSpanData]) -> TraceDataDict:
         """Extract log data from an agent span."""
