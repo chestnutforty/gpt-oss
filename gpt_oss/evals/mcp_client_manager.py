@@ -90,16 +90,6 @@ class MCPClientManager:
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> str:
         """
         Execute a tool via the appropriate MCP server.
-
-        Args:
-            name: Tool name
-            arguments: Tool arguments as dictionary
-
-        Returns:
-            Tool result as string
-
-        Raises:
-            ValueError: If tool name is not found
         """
         if not self._connected:
             raise RuntimeError("Must call connect() before calling tools")
