@@ -14,6 +14,7 @@ class SamplerResponse:
     response_text: str
     actual_queried_message_list: MessageList
     response_metadata: dict[str, Any]
+    spans: list[dict[str, Any]] | None = None
 
 class SamplerBase:
     """
@@ -55,6 +56,7 @@ class SingleEvalResult:
     metrics: dict[str, float] = field(default_factory=dict)
     html: str | None = None
     convo: MessageList | None = None  # sampled conversation
+    spans: list[dict[str, Any]] | None = None  # spans from the trace
     example_level_metadata: dict[str, Any] | None = (
         None  # Extra data such as rubric scores or sollen
     )
