@@ -11,7 +11,7 @@ from openai import AsyncOpenAI
 from agents import Agent, Runner, function_tool, RunContextWrapper, ModelSettings, ItemHelpers, trace, set_default_openai_client, set_default_openai_api, set_tracing_disabled, add_trace_processor, TResponseInputItem
 from agents.mcp import MCPServerSse
 import weave
-from trace_processor import LocalJSONTracingProcessor
+from gpt_oss.evals.trace_processor import LocalJSONTracingProcessor
 
 PROMPTS_DIR = Path(__file__).parent.parent.parent / "gpt_oss" / "prompts"
 UNIFIED_PROMPT = (PROMPTS_DIR / "unified_forecaster.md").read_text(encoding="utf-8")
@@ -52,7 +52,6 @@ class ForecastingContext:
 async def create_subagent(
     ctx: RunContextWrapper[ForecastingContext],
     subquestion: str,
-    context_for_agent: str
 ) -> str:
     """Create a subagent to analyze a subquestion.
 
@@ -60,7 +59,6 @@ async def create_subagent(
 
     Args:
         subquestion: Specific question to analyze (make it clear and self-contained)
-        context_for_agent: Background context explaining how this fits into the broader forecast
 
     Returns:
         Analysis with probability estimate, reasoning, and uncertainties
@@ -83,9 +81,6 @@ async def create_subagent(
 
 **YOUR Subquestion:**
 {subquestion}
-
-**Context:**
-{context_for_agent}
 """
 
     print(f"\n{'  ' * depth}🔄 Depth {depth}: {subquestion}")
