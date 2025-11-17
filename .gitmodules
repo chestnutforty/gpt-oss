@@ -22,3 +22,6 @@
 [submodule "mcp-servers/mcp-datacommons"]
 	path = mcp-servers/mcp-datacommons
 	url = https://github.com/chestnutforty/mcp-datacommons.git
+[submodule "mcp-servers/mcp-eu"]
+	path = mcp-servers/mcp-eu
+	url = https://github.com/chestnutforty/mcp-eu.git
