@@ -16,12 +16,17 @@ from agents.tracing import (
     AgentSpanData,
     CustomSpanData,
     FunctionSpanData,
+    GenerationSpanData,
     GuardrailSpanData,
     HandoffSpanData,
+    MCPListToolsSpanData,
     ResponseSpanData,
+    SpeechGroupSpanData,
+    SpeechSpanData,
     Span,
     Trace,
     TracingProcessor,
+    TranscriptionSpanData,
 )
 
 
@@ -38,6 +43,16 @@ def _call_name(span: Span) -> str:
         return "Response"
     elif isinstance(span.span_data, HandoffSpanData):
         return "Handoff"
+    elif isinstance(span.span_data, MCPListToolsSpanData):
+        return f"MCP Tools ({span.span_data.server or 'unknown server'})"
+    elif isinstance(span.span_data, GenerationSpanData):
+        return "Generation"
+    elif isinstance(span.span_data, TranscriptionSpanData):
+        return "Transcription"
+    elif isinstance(span.span_data, SpeechSpanData):
+        return "Speech"
+    elif isinstance(span.span_data, SpeechGroupSpanData):
+        return "Speech Group"
     else:
         return "Unknown"
 
@@ -50,7 +65,7 @@ class TraceDataDict(TypedDict):
     error: dict[str, Any] | None
 
 
-class LocalJSONTracingProcessor(TracingProcessor):  # pyright: ignore[reportGeneralTypeIssues]
+class LocalJSONTracingProcessor(TracingProcessor):
     """A TracingProcessor implementation that logs OpenAI Agent traces and spans to local JSON files.
 
     This processor captures different types of spans from OpenAI Agents (agent execution,
@@ -107,6 +122,8 @@ class LocalJSONTracingProcessor(TracingProcessor):  # pyright: ignore[reportGene
         trace_data["status"] = "completed"
         if tid in self._trace_start_times:
             trace_data["duration_seconds"] = end_time - self._trace_start_times[tid]
+            
+        trace.trace_data = trace_data
 
         # Write trace to JSON file
         self._write_trace_to_file(tid, trace_data)
@@ -237,6 +254,68 @@ class LocalJSONTracingProcessor(TracingProcessor):  # pyright: ignore[reportGene
             error=None,
         )
 
+    def _mcp_tools_log_data(self, span: Span[MCPListToolsSpanData]) -> TraceDataDict:
+        """Extract log data from an MCP tools span."""
+        return TraceDataDict(
+            inputs=[],
+            outputs=span.span_data.result or [],
+            metadata={
+                "server": span.span_data.server,
+            },
+            metrics={},
+            error=None,
+        )
+
+    def _generation_log_data(self, span: Span[GenerationSpanData]) -> TraceDataDict:
+        """Extract log data from a generation span."""
+        return TraceDataDict(
+            inputs=list(span.span_data.input) if span.span_data.input else [],
+            outputs=list(span.span_data.output) if span.span_data.output else [],
+            metadata={
+                "model": span.span_data.model,
+                "model_config": span.span_data.model_config,
+            },
+            metrics=span.span_data.usage or {},
+            error=None,
+        )
+
+    def _transcription_log_data(self, span: Span[TranscriptionSpanData]) -> TraceDataDict:
+        """Extract log data from a transcription span."""
+        return TraceDataDict(
+            inputs=[{"data": span.span_data.input, "format": span.span_data.input_format}] if span.span_data.input else [],
+            outputs=[span.span_data.output] if span.span_data.output else [],
+            metadata={
+                "model": span.span_data.model,
+                "model_config": span.span_data.model_config,
+            },
+            metrics={},
+            error=None,
+        )
+
+    def _speech_log_data(self, span: Span[SpeechSpanData]) -> TraceDataDict:
+        """Extract log data from a speech span."""
+        return TraceDataDict(
+            inputs=[span.span_data.input] if span.span_data.input else [],
+            outputs=[{"data": span.span_data.output, "format": span.span_data.output_format}] if span.span_data.output else [],
+            metadata={
+                "model": span.span_data.model,
+                "model_config": span.span_data.model_config,
+                "first_content_at": span.span_data.first_content_at,
+            },
+            metrics={},
+            error=None,
+        )
+
+    def _speech_group_log_data(self, span: Span[SpeechGroupSpanData]) -> TraceDataDict:
+        """Extract log data from a speech group span."""
+        return TraceDataDict(
+            inputs=[span.span_data.input] if span.span_data.input else [],
+            outputs=[],
+            metadata={},
+            metrics={},
+            error=None,
+        )
+
     def _log_data(self, span: Span) -> TraceDataDict:
         """Extract the appropriate log data based on the span type."""
         if isinstance(span.span_data, AgentSpanData):
@@ -251,6 +330,16 @@ class LocalJSONTracingProcessor(TracingProcessor):  # pyright: ignore[reportGene
             return self._guardrail_log_data(span)
         elif isinstance(span.span_data, CustomSpanData):
             return self._custom_log_data(span)
+        elif isinstance(span.span_data, MCPListToolsSpanData):
+            return self._mcp_tools_log_data(span)
+        elif isinstance(span.span_data, GenerationSpanData):
+            return self._generation_log_data(span)
+        elif isinstance(span.span_data, TranscriptionSpanData):
+            return self._transcription_log_data(span)
+        elif isinstance(span.span_data, SpeechSpanData):
+            return self._speech_log_data(span)
+        elif isinstance(span.span_data, SpeechGroupSpanData):
+            return self._speech_group_log_data(span)
         else:
             return TraceDataDict(
                 inputs=[],
@@ -398,4 +487,8 @@ class LocalJSONTracingProcessor(TracingProcessor):  # pyright: ignore[reportGene
     def force_flush(self) -> None:
         """Forces an immediate flush of all queued traces."""
         self._finish_unfinished_calls("force_flushed")
+        
+    def export(self) -> list[dict[str, Any]]:
+        """Exports all traces as a list of dictionaries."""
+        return list(self._trace_data.values())
 
