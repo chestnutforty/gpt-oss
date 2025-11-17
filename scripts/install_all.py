@@ -3,6 +3,15 @@
 import sys
 import subprocess
 from pathlib import Path
+import importlib.util
+
+# Import centralized MCP server config without triggering package __init__.py
+config_path = Path(__file__).parent.parent / "gpt_oss" / "evals" / "mcp_servers_config.py"
+spec = importlib.util.spec_from_file_location("mcp_servers_config", config_path)
+mcp_config = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mcp_config)
+
+MCP_SERVERS = mcp_config.MCP_SERVERS
 
 
 def main():
@@ -16,8 +25,8 @@ def main():
     print("=" * 30)
     print()
 
-    # Array of servers to install
-    servers = ["mcp-wikipedia", "mcp-browser", "mcp-python", "mcp-google-trends", "mcp-metaculus", "mcp-financial-datasets", "mcp-datacommons"]
+    # Get servers from centralized config
+    servers = [server.name for server in MCP_SERVERS]
 
     for server in servers:
         server_dir = mcp_servers_dir / server
@@ -61,13 +70,8 @@ def main():
     print("  python scripts/run_server.py <server_name>")
     print()
     print("Available servers:")
-    print("  - wikipedia (port 8003)")
-    print("  - browser (port 8001)")
-    print("  - python (port 8002)")
-    print("  - google-trends (port 8004)")
-    print("  - metaculus (port 8005)")
-    print("  - financial-datasets (port 8006)")
-    print("  - datacommons (port 8007)")
+    for server in MCP_SERVERS:
+        print(f"  - {server.short_name} (port {server.port})")
 
 
 if __name__ == "__main__":

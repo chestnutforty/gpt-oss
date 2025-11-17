@@ -5,40 +5,34 @@ Helper script to run MCP servers.
 Usage:
     python scripts/run_server.py <server_name>
 
-Available servers:
-    - wikipedia (port 8003)
-    - browser (port 8001)
-    - python (port 8002)
-    - google-trends (port 8004)
-    - metaculus (port 8005)
-    - financial-datasets (port 8006)
+Available servers are defined in gpt_oss/evals/mcp_servers_config.py
 """
 import sys
 import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
+import importlib.util
+
+# Import centralized MCP server config without triggering package __init__.py
+config_path = Path(__file__).parent.parent / "gpt_oss" / "evals" / "mcp_servers_config.py"
+spec = importlib.util.spec_from_file_location("mcp_servers_config", config_path)
+mcp_config = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mcp_config)
+
+MCP_SERVERS = mcp_config.MCP_SERVERS
+get_server_by_name = mcp_config.get_server_by_name
 
 load_dotenv(override=True)
 
-# Map server names to their entry point scripts
+# Build server maps from centralized config
 SERVERS = {
-    "wikipedia": "mcp-servers/mcp-wikipedia/wikipedia_server.py",
-    "browser": "mcp-servers/mcp-browser/browser_server.py",
-    "python": "mcp-servers/mcp-python/python_server.py",
-    "google-trends": "mcp-servers/mcp-google-trends/google_trends_server.py",
-    "metaculus": "mcp-servers/mcp-metaculus/metaculus_server.py",
-    "financial-datasets": "mcp-servers/mcp-financial-datasets/financial_datasets_server.py",
-    "datacommons": "mcp-servers/mcp-datacommons/server.py",
+    server.short_name: f"mcp-servers/{server.name}/{server.entry_script}"
+    for server in MCP_SERVERS
 }
 
 PORT_INFO = {
-    "wikipedia": 8003,
-    "browser": 8001,
-    "python": 8002,
-    "google-trends": 8004,
-    "metaculus": 8005,
-    "financial-datasets": 8006,
-    "datacommons": 8007,
+    server.short_name: server.port
+    for server in MCP_SERVERS
 }
 
 

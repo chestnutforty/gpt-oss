@@ -17,9 +17,16 @@ from .chat_completions_sampler import (
     ChatCompletionsSampler,
 )
 from .responses_sampler import ResponsesSampler
-from .api_sampler import ApiSampler
+from .flat_sampler import FlatSampler
 from .metaculus_eval import MetaculusEval
 from .recursive_sampler import RecursiveSampler
+from .mcp_servers_config import MCP_SERVERS
+
+# Build MCP server mapping from centralized config
+MCP_SERVER_MAP = {
+    server.short_name: (server.short_name, server.port)
+    for server in MCP_SERVERS
+}
 
 
 def main():
@@ -50,7 +57,7 @@ def main():
     parser.add_argument(
         "--sampler",
         type=str,
-        choices=["responses", "chat_completions", "api", "recursive"],
+        choices=["responses", "chat_completions", "flat", "recursive"],
         default="responses",
         help="Sampler backend to use for models.",
     )
@@ -183,15 +190,7 @@ def main():
     mcp_servers = []
     if args.mcp:
         mcp_servers = args.mcp.split(",")
-        mcp_servers = [{
-            "wikipedia": ("wikipedia", 8003),
-            "browser": ("browser", 8001),
-            "python": ("python", 8002),
-            "google-trends": ("google-trends", 8004),
-            "metaculus": ("metaculus", 8005),
-            "financial-datasets": ("financial-datasets", 8006),
-            "datacommons": ("datacommons", 8007),
-        }[mcp_server] for mcp_server in mcp_servers]
+        mcp_servers = [MCP_SERVER_MAP[mcp_server] for mcp_server in mcp_servers]
         print(f"MCP servers: {mcp_servers}")
 
     # Create models/samplers
@@ -200,8 +199,8 @@ def main():
         sampler_cls = ResponsesSampler
     elif args.sampler == "chat_completions":
         sampler_cls = ChatCompletionsSampler
-    elif args.sampler == "api":
-        sampler_cls = ApiSampler
+    elif args.sampler == "flat":
+        sampler_cls = FlatSampler
     elif args.sampler == "recursive":
         sampler_cls = RecursiveSampler
     else:

@@ -30,20 +30,22 @@ import subprocess
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+import importlib.util
+
+# Import centralized MCP server config without triggering package __init__.py
+config_path = Path(__file__).parent.parent / "gpt_oss" / "evals" / "mcp_servers_config.py"
+spec = importlib.util.spec_from_file_location("mcp_servers_config", config_path)
+mcp_config = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mcp_config)
+
+get_testable_servers = mcp_config.get_testable_servers
+get_server_names = mcp_config.get_server_names
 
 load_dotenv(override=True)
 
 
-# Available MCP servers (excluding mcp-template)
-MCP_SERVERS = [
-    "mcp-browser",
-    "mcp-python",
-    "mcp-wikipedia",
-    "mcp-financial-datasets",
-    "mcp-google-trends",
-    "mcp-metaculus",
-    "mcp-datacommons",
-]
+# Get available MCP servers from centralized config
+MCP_SERVERS = get_testable_servers()
 
 
 def get_mcp_servers_dir() -> Path:
