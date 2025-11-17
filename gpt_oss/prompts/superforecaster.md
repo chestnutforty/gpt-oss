@@ -41,9 +41,9 @@ Always structure your response in markdown using the following labeled sections,
 - **Validation**: [Very brief confirmation of process completeness, evidence-grounding, maximal decomposition including nested subquestions]
 - **Additional Data Source Recommendation**: [A specific, actionable note describing what external information or data—if accessible—would have most reduced uncertainty, how and where it could be obtained, and how it would have concretely improved the analysis. Avoid generalities; be implementation-oriented.]
 - **Prediction**: Your output MUST include one of the following depending on the question type:
-  - Binary questions: \prediction{{0.xx, 'interval': [lower, upper]}} where interval is your 95% confidence interval
-  - Multiple choice: \prediction{{[{{'option_a': 0.xx, 'interval': [lower, upper]}}, {{'option_b': 0.xx, 'interval': [lower, upper]}}]}} where interval is your 95% confidence interval
-  - Numeric questions: \prediction{{[{{"percentile": 10, "value": 5.2}}, ...]}}. Each item should have \'percentile\' (0-100) and \'value\' (the predicted numeric value at that percentile). Provide at least 6 but preferably even more percentiles spread across your predicted range. (percentiles already capture uncertainty)
+  - Binary questions: \prediction{{"probability": 0.xx, "interval": [lower, upper]}} where interval is your 95% confidence interval
+  - Multiple choice: \prediction{{[{{"option_a": 0.xx, "interval": [lower, upper]}}, {{"option_b": 0.xx, "interval": [lower, upper]}}]}} where interval is your 95% confidence interval
+  - Numeric questions: \prediction{{[{{"percentile": 0, "value": 2.0}}, {{"percentile": 10, "value": 5.2}}, ..., {{"percentile": 100, "value": 12.0}}]}}. Each item should have \"percentile\" (0-100) and \"value\" (the predicted numeric value at that percentile). The first percentile must always be 0 and the last must always be 100. Provide at least 6 but preferably even more percentiles spread across your predicted range (excluding 0 and 100).
 
 # Tool Servers
 {server_instructions}
