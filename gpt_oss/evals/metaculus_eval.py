@@ -8,33 +8,59 @@ from . import report
 from .types import Eval, EvalResult, SamplerBase, SingleEvalResult
 
 
-def extract_binary_probability(response_text: str) -> float | None:
-    r"""Extract binary probability from response using \prediction{0.XX} pattern."""
-    # Match valid float patterns: integers (5), decimals (0.5, .5), or scientific notation
-    match = re.search(r'\\prediction\{([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\}', response_text)
+def extract_binary_probability(response_text: str) -> tuple[float | None, list[float] | None]:
+    r"""Extract binary probability and uncertainty interval from response.
+
+    Supports formats:
+    - \prediction{0.XX, 'interval': [lower, upper]}
+    - \prediction{0.XX} (legacy format, interval will be None)
+
+    Returns:
+        Tuple of (point_estimate, interval) where interval is [lower, upper] or None
+    """
+    match = re.search(
+        r"\\prediction\{([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\s*,\s*['\"]interval['\"]\s*:\s*\[([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\s*,\s*([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\]\}",
+        response_text
+    )
     if match:
         try:
             point_estimate = float(match.group(1))
+            lower = float(match.group(2))
+            upper = float(match.group(3))
+
+            # Convert from percentage if needed
             if point_estimate > 1.0:
                 point_estimate = point_estimate / 100.0
-            return point_estimate
+            if lower > 1.0:
+                lower = lower / 100.0
+            if upper > 1.0:
+                upper = upper / 100.0
+
+            return point_estimate, [lower, upper]
         except ValueError:
-            # If conversion fails, return None
-            return None
-    return None
+            pass
+
+    return None, None
 
 
-def extract_multiple_choice_probabilities(response_text: str, outcomes: list[str]) -> dict[str, float] | None:
-    r"""Extract multiple choice probabilities from response.
+def extract_multiple_choice_probabilities(response_text: str, outcomes: list[str]) -> tuple[dict[str, float] | None, dict[str, list[float]] | None]:
+    r"""Extract multiple choice probabilities and uncertainty intervals from response.
 
-    Looks for pattern: \prediction{[{'option_a': 0.xx}, {'option_b': 0.yy}, ...]}
+    Supports formats:
+    - \prediction{[{'option_a': 0.xx, 'interval': [lower, upper]}, {'option_b': 0.yy, 'interval': [lower, upper]}]}
+    - \prediction{[{'option_a': 0.xx}, {'option_b': 0.yy}]} (legacy, no intervals)
+
+    Returns:
+        Tuple of (option_probs, option_intervals) where:
+        - option_probs: dict mapping option -> probability
+        - option_intervals: dict mapping option -> [lower, upper] or None if no intervals
     """
     # Find \prediction{ and then match braces
     pattern = r'\\prediction\{'
     start_match = re.search(pattern, response_text)
 
     if not start_match:
-        return None
+        return None, None
 
     # Find matching braces starting from the first {
     start_idx = start_match.end()
@@ -49,29 +75,54 @@ def extract_multiple_choice_probabilities(response_text: str, outcomes: list[str
         idx += 1
 
     if brace_count != 0:
-        return None
+        return None, None
 
     try:
-        # Extract the list string and parse it as Python literal
-        list_str = response_text[start_idx:idx-1]
-        option_list = ast.literal_eval(list_str)
+        # Extract the content string
+        content_str = response_text[start_idx:idx-1].strip()
+
+        # Parse the list of probabilities
+        option_list = ast.literal_eval(content_str)
 
         if not isinstance(option_list, list):
-            return None
+            return None, None
 
-        # Convert list of dicts to single dict with probabilities
+        # Convert list of dicts to dicts with probabilities and intervals
         converted_probs = {}
+        converted_intervals = {}
+        has_any_interval = False
+
         for item in option_list:
             if isinstance(item, dict):
                 for key, value in item.items():
+                    # Skip 'interval' keys
+                    if key == 'interval':
+                        continue
+
+                    # Extract probability
                     prob = float(value)
                     if prob > 1.0:
                         prob = prob / 100.0
                     converted_probs[str(key)] = prob
 
-        return converted_probs if converted_probs else None
+                    # Extract interval if present
+                    if 'interval' in item:
+                        interval = item['interval']
+                        if isinstance(interval, list) and len(interval) == 2:
+                            lower, upper = float(interval[0]), float(interval[1])
+                            if lower > 1.0:
+                                lower = lower / 100.0
+                            if upper > 1.0:
+                                upper = upper / 100.0
+                            converted_intervals[str(key)] = [lower, upper]
+                            has_any_interval = True
+
+        return (
+            converted_probs if converted_probs else None,
+            converted_intervals if has_any_interval else None
+        )
     except (ValueError, SyntaxError, TypeError):
-        return None
+        return None, None
 
 
 def extract_numeric_percentiles(response_text: str) -> list[dict] | None:
@@ -254,6 +305,7 @@ class MetaculusEval(Eval):
         num_examples: int | None = None,
         cutoff_types: list[str] = ["1day", "3day", "1week", "2week", "1month"],
         num_threads: int = 4,
+        latest_only: bool = False,
     ):
         super().__init__(num_threads)
 
@@ -287,9 +339,33 @@ class MetaculusEval(Eval):
 
         questions = filtered_questions
 
+        # Filter to latest snapshot only if requested
+        if latest_only:
+            question_to_latest = {}
+            for q in questions:
+                question_text = q.get("question")
+                snapshot_datetime = q.get("snapshot_datetime")
+                if question_text and snapshot_datetime:
+                    if question_text not in question_to_latest:
+                        question_to_latest[question_text] = q
+                    else:
+                        # Keep the one with latest snapshot_datetime
+                        current_latest = question_to_latest[question_text].get("snapshot_datetime")
+                        if snapshot_datetime > current_latest:
+                            question_to_latest[question_text] = q
+            questions = list(question_to_latest.values())
+
         # Subsample if requested
         if num_examples is not None:
-            questions = questions[:num_examples]
+            question_to_dict = {}
+            for q in questions:
+                question_text = q.get("question", "")
+                if question_text and question_text not in question_to_dict:
+                    question_to_dict[question_text] = q
+
+            # Take first num_examples unique questions
+            unique_questions = list(question_to_dict.values())
+            questions = unique_questions[:num_examples]
 
         # Expand to multiple examples per cutoff type
         self.examples = []
@@ -391,14 +467,20 @@ Question Type:
             prediction = None
 
             if question_type == "binary":
-                point_estimate = extract_binary_probability(response_text)
-                prediction = point_estimate
+                point_estimate, interval = extract_binary_probability(response_text)
+                prediction = {"probability": point_estimate, "interval": interval}
 
                 metrics["extraction_success"] = 1.0 if point_estimate is not None else 0.0
 
+                # Store uncertainty metrics
+                if interval is not None:
+                    metrics["interval_lower"] = interval[0]
+                    metrics["interval_upper"] = interval[1]
+                    metrics["interval_width"] = interval[1] - interval[0]
+
                 if point_estimate is not None:
                     ground_truth = row["resolution_numeric"]
-    
+
                     metrics["log_score"] = calculate_binary_log_score(point_estimate, ground_truth)
                     metrics["brier_score"] = calculate_brier_score(point_estimate, ground_truth)
                     metrics["abs_diff_from_resolution"] = abs(point_estimate - ground_truth)
@@ -412,10 +494,17 @@ Question Type:
 
             elif question_type == "multiple_choice":
                 correct_outcome = row["outcome"]
-                option_probs = extract_multiple_choice_probabilities(response_text, [correct_outcome])
+                option_probs, option_intervals = extract_multiple_choice_probabilities(response_text, [correct_outcome])
 
-                prediction = option_probs
+                prediction = {"probabilities": option_probs, "intervals": option_intervals}
                 metrics["extraction_success"] = 1.0 if option_probs is not None else 0.0
+
+                # Store uncertainty metrics
+                if option_intervals is not None and correct_outcome in option_intervals:
+                    interval = option_intervals[correct_outcome]
+                    metrics["correct_option_interval_lower"] = interval[0]
+                    metrics["correct_option_interval_upper"] = interval[1]
+                    metrics["correct_option_interval_width"] = interval[1] - interval[0]
 
                 if option_probs is not None and correct_outcome in option_probs:
                     log_score, normalized_probs = calculate_multiple_choice_log_score(
@@ -495,6 +584,7 @@ Question Type:
                 html=html,
                 score=score,
                 convo=convo,
+                spans=sampler_response.spans if sampler_response.spans is not None else None,
                 metrics=metrics,
                 example_level_metadata=example_level_metadata,
             )

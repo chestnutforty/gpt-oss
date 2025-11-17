@@ -62,7 +62,7 @@ def main():
     parser.add_argument(
         "--temperature",
         type=float,
-        default=0.6,
+        default=0.0,
         help="Sampling temperature",
     )
     parser.add_argument(
@@ -144,6 +144,11 @@ def main():
         default=["1month"],
         help="Which cutoff dates to use for Metaculus eval",
     )
+    parser.add_argument(
+        "--metaculus-latest-only",
+        action="store_true",
+        help="Only use latest snapshot date for each question in Metaculus eval",
+    )
 
     # Recursive sampler arguments
     parser.add_argument(
@@ -166,7 +171,6 @@ def main():
     if args.developer_message:
         developer_message = Path(__file__).parent.parent / "prompts" / f"{args.developer_message}.md"
         developer_message = developer_message.read_text(encoding="utf-8")
-        print(f"Developer message: {developer_message}")
         
     # Build list of MCP servers to connect to
     mcp_servers = []
@@ -243,6 +247,7 @@ def main():
                     num_examples=num_examples,
                     cutoff_types=args.metaculus_cutoff_types,
                     num_threads=args.n_threads,
+                    latest_only=args.metaculus_latest_only,
                 )
             case _:
                 raise Exception(f"Unrecognized eval type: {eval_name}")
@@ -318,6 +323,7 @@ def main():
                         "html": ser.html,
                         "convo": ser.convo,
                         "example_level_metadata": ser.example_level_metadata,
+                        "spans": ser.spans if ser.spans else None,
                     }
                     for ser in result.single_eval_results
                 ]
