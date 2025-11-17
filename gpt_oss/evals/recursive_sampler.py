@@ -1,4 +1,5 @@
 import asyncio
+import traceback
 import threading
 from typing import Any
 from dataclasses import dataclass, field
@@ -95,6 +96,7 @@ class RecursiveSampler(SamplerBase):
         max_tokens: int = 131_072,
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
+        verbosity: str = "medium",
         base_url: str = "http://localhost:8000/v1",
         mcp_servers: list[tuple[str, int]] | list[tuple[str, dict[str, Any]]] | None = None,
         max_depth: int = 2,
@@ -108,6 +110,7 @@ class RecursiveSampler(SamplerBase):
         self.base_url = base_url
         self.reasoning_model = reasoning_model
         self.reasoning_effort = reasoning_effort
+        self.verbosity = verbosity
         self.max_depth = max_depth
         self.max_turns = max_turns
 
@@ -190,10 +193,12 @@ class RecursiveSampler(SamplerBase):
         instructions, user_prompt = self._convert_messages(message_list, mcp_servers, max_depth=self.max_depth)
 
         # Model settings
-        model_settings = ModelSettings()
+        model_settings = ModelSettings(verbosity=self.verbosity, parallel_tool_calls=True)
         if self.reasoning_model and self.reasoning_effort:
             model_settings = ModelSettings(
-                reasoning=Reasoning(effort=self.reasoning_effort, summary='detailed')
+                reasoning=Reasoning(effort=self.reasoning_effort, summary='detailed'),
+                verbosity=self.verbosity,
+                parallel_tool_calls=True,
             )
 
         # Create base agent
@@ -223,7 +228,7 @@ class RecursiveSampler(SamplerBase):
             with trace('Recursive Superforecaster') as t:
                 result = await Runner.run(
                     agent,
-                    input=f"{user_prompt}\n\n**Cutoff Date:** {cutoff_date}",
+                    input=f"{user_prompt}",
                     context=context,
                     max_turns=self.max_turns
                 )
@@ -239,6 +244,8 @@ class RecursiveSampler(SamplerBase):
                     spans=t.trace_data["spans"],
                 )
         except Exception as e:
+            print(f"Error during agent execution: {e}")
+            print(traceback.format_exc())
             return SamplerResponse(
                 response_text=f"Error: {str(e)}",
                 response_metadata={"usage": None, "error": str(e)},

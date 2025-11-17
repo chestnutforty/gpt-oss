@@ -7,9 +7,10 @@ from datetime import datetime
 from dataclasses import dataclass
 from openai import AsyncOpenAI
 from openai.types.shared import Reasoning
-from agents import Agent, Runner, ModelSettings, set_default_openai_client, set_default_openai_api, set_tracing_disabled
+from agents import Agent, Runner, ModelSettings, set_default_openai_client, set_default_openai_api, set_tracing_disabled, add_trace_processor, trace
 from agents.mcp import MCPServerSse
 
+from .trace_processor import LocalJSONTracingProcessor
 from .types import MessageList, SamplerBase, SamplerResponse
 
 @dataclass
@@ -31,6 +32,7 @@ class ApiSampler(SamplerBase):
         max_tokens: int = 131_072,
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
+        verbosity: str = "medium",
         base_url: str = "http://localhost:8000/v1",
         mcp_servers: list[tuple[str, int]] | list[tuple[str, dict[str, Any]]] | None = None,
         enable_internal_browser: bool = False,
@@ -45,6 +47,7 @@ class ApiSampler(SamplerBase):
         self.base_url = base_url
         self.reasoning_model = reasoning_model
         self.reasoning_effort = reasoning_effort
+        self.verbosity = verbosity
         self.max_turns = max_turns
         
         self.tools = []
@@ -80,6 +83,7 @@ class ApiSampler(SamplerBase):
         set_tracing_disabled(False)
         set_default_openai_client(self.client)
         set_default_openai_api("responses")
+        add_trace_processor(LocalJSONTracingProcessor(output_dir="traces"))
 
     def _run_async(self, coro):
         """Run async code in sync context."""
@@ -146,9 +150,9 @@ class ApiSampler(SamplerBase):
         instructions, user_prompt = self._convert_messages(message_list, mcp_servers)
         
         # Reasoning model settings
-        model_settings = ModelSettings()
+        model_settings = ModelSettings(verbosity=self.verbosity, parallel_tool_calls=True)
         if self.reasoning_model and self.reasoning_effort:
-            model_settings = ModelSettings(reasoning=Reasoning(effort=self.reasoning_effort, summary='detailed'))
+            model_settings = ModelSettings(reasoning=Reasoning(effort=self.reasoning_effort, summary='detailed'), verbosity=self.verbosity, parallel_tool_calls=True)
             
 
         agent = Agent(
@@ -161,16 +165,25 @@ class ApiSampler(SamplerBase):
         )
         
         try:
-            result = await Runner.run(agent, user_prompt, max_turns=self.max_turns, context=context)
-            response_text = result.final_output or ""
+            with trace('Superforecaster') as t:
+                result = await Runner.run(
+                    agent,
+                    input=f"{user_prompt}",
+                    context=context,
+                    max_turns=self.max_turns
+                )
+                t.finish()
 
-            updated_messages = result.to_input_list()
-            
-            return SamplerResponse(
-                response_text=response_text,
-                response_metadata={"usage": None},
-                actual_queried_message_list=updated_messages,
-            )
+                response_text = result.final_output or ""
+                updated_messages = result.to_input_list()
+
+                return SamplerResponse(
+                    response_text=response_text,
+                    response_metadata={"usage": None},
+                    actual_queried_message_list=updated_messages,
+                    spans=t.trace_data["spans"],
+                )
+
         except Exception as e:
             print(f"Error during agent execution: {e}")
             print(traceback.format_exc())
@@ -178,6 +191,7 @@ class ApiSampler(SamplerBase):
                 response_text=f"Error: {str(e)}",
                 response_metadata={"usage": None, "error": str(e)},
                 actual_queried_message_list=message_list,
+                spans=t.trace_data["spans"],
             )
 
     def __call__(self, message_list: MessageList, cutoff_date: str = None) -> SamplerResponse:

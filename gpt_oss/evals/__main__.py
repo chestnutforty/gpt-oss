@@ -41,6 +41,13 @@ def main():
         help="Reasoning effort (low, medium, high). Accepts a comma-separated list.",
     )
     parser.add_argument(
+        "--verbosity",
+        type=str,
+        default="medium",
+        choices=["low", "medium", "high"],
+        help="Verbosity (low, medium, high).",
+    )
+    parser.add_argument(
         "--sampler",
         type=str,
         choices=["responses", "chat_completions", "api", "recursive"],
@@ -206,6 +213,7 @@ def main():
                 model=model_name,
                 reasoning_model=True,
                 reasoning_effort=reasoning_effort,
+                verbosity=args.verbosity,
                 temperature=args.temperature,
                 base_url=args.base_url,
                 max_tokens=131_072,

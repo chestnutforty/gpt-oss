@@ -25,6 +25,7 @@ class ResponsesSampler(SamplerBase):
         max_tokens: int = 131_072,
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
+        verbosity: str = "medium",
         base_url: str = "http://localhost:8000/v1",
         mcp_servers: list[tuple[str, int]] | None = None,
         enable_internal_browser: bool = False,
@@ -39,6 +40,7 @@ class ResponsesSampler(SamplerBase):
         self.image_format = "url"
         self.reasoning_model = reasoning_model
         self.reasoning_effort = reasoning_effort
+        self.verbosity = verbosity
         self.mcp_servers = mcp_servers
         # Use thread-local storage for MCP manager since it contains async objects
         # tied to a specific event loop. Each thread needs its own instance.
@@ -114,6 +116,8 @@ class ResponsesSampler(SamplerBase):
                 request_kwargs["reasoning"] = (
                     {"effort": self.reasoning_effort} if self.reasoning_effort else None
                 )
+            if self.verbosity:
+                request_kwargs["verbosity"] = self.verbosity
             response = self.client.responses.create(**request_kwargs)
 
             # Check for function calls
