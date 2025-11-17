@@ -6,15 +6,18 @@ import os
 
 from openai import AsyncOpenAI
 from openai.types.shared import Reasoning
-from agents import Agent, Runner, ModelSettings, function_tool, RunContextWrapper, set_default_openai_client, set_default_openai_api, set_tracing_disabled
+from agents import trace, Agent, Runner, ModelSettings, function_tool, RunContextWrapper, set_default_openai_client, set_default_openai_api, set_tracing_disabled, add_trace_processor
 from agents.mcp import MCPServerSse
 
+from .trace_processor import LocalJSONTracingProcessor
 from .types import MessageList, SamplerBase, SamplerResponse
+
 
 @dataclass
 class RecursiveForecastingContext:
     max_depth: int = 2
     current_depth: int = 0
+    max_turns: int = 200,
     cutoff_date: str = ""
     original_question: str = ""
     question_path: list[str] = field(default_factory=list)
@@ -26,6 +29,7 @@ class RecursiveForecastingContext:
         return RecursiveForecastingContext(
             max_depth=self.max_depth,
             current_depth=self.current_depth + 1,
+            max_turns=self.max_turns,
             cutoff_date=self.cutoff_date,
             original_question=self.original_question,
             question_path=self.question_path + [new_subquestion],
@@ -38,21 +42,19 @@ class RecursiveForecastingContext:
 async def create_subagent(
     ctx: RunContextWrapper[RecursiveForecastingContext],
     subquestion: str,
-    context_for_agent: str
+    question_type: str = "binary",
 ) -> str:
-    """Create a subagent to analyze a subquestion.
-
-    The specialist will decide whether to further delegate or analyze directly.
+    """Create a subagent to make a prediction for a subquestion.
 
     Args:
-        subquestion: Specific question to analyze (make it clear and self-contained)
-        context_for_agent: Background context explaining how this fits into the broader forecast
+        subquestion: Specific question to predict (make it clear and self-contained)
+        question_type: Type of question - one of "binary", "multiple_choice", or "numeric"
 
     Returns:
-        Analysis with reasoning and conclusions
+        Prediction with reasoning and conclusions
     """
     if ctx.context.current_depth >= ctx.context.max_depth:
-        return f"⚠️ Max depth ({ctx.context.max_depth}) reached. You must analyze this directly: {subquestion}"
+        return f"⚠️ Max depth ({ctx.context.max_depth}) reached. You must predict this directly: {subquestion}"
 
     new_context = ctx.context.increment_depth(subquestion)
     
@@ -61,21 +63,20 @@ async def create_subagent(
         server_instructions += f"\n\n## {server.name}\n\n{server.server_initialize_result.instructions}"
 
     specialist = ctx.context.base_agent.clone(
-        name="Specialist",
+        name="Subagent",
         instructions=ctx.context.instructions_template.format(server_instructions=server_instructions, max_depth=ctx.context.max_depth, current_depth=ctx.context.current_depth)
     )
 
-    prompt = f"""**Main Question:** {new_context.original_question}
-**Question Path:** {' → '.join(new_context.question_path)}
+    prompt = f"""**Original Root Question of the Overall Forecast:** {new_context.original_question}
+**Question Path of the Subquestion:** {' → '.join(new_context.question_path)}
 **Cutoff Date:** {new_context.cutoff_date}
+**Question Type:** {question_type}
 
-**Your Subquestion:**
+**YOUR Subquestion to Predict:**
 {subquestion}
-
-**Context:**
-{context_for_agent}"""
-
-    result = await Runner.run(specialist, input=prompt, context=new_context, max_turns=5)
+"""
+    
+    result = await Runner.run(specialist, input=prompt, context=new_context, max_turns=ctx.context.max_turns)
 
     return f"\n{'='*60}\n**Subquestion:** {subquestion}\n\n{result.final_output}\n{'='*60}\n"
 
@@ -131,6 +132,7 @@ class RecursiveSampler(SamplerBase):
         set_tracing_disabled(False)
         set_default_openai_client(self.client)
         set_default_openai_api("responses")
+        add_trace_processor(LocalJSONTracingProcessor(output_dir="traces"))
 
     def _run_async(self, coro):
         """Run async code in sync context."""
@@ -208,6 +210,7 @@ class RecursiveSampler(SamplerBase):
         context = RecursiveForecastingContext(
             max_depth=self.max_depth,
             current_depth=0,
+            max_turns=self.max_turns,
             cutoff_date=cutoff_date,
             original_question=user_prompt,
             question_path=["Root"],
@@ -217,26 +220,30 @@ class RecursiveSampler(SamplerBase):
         )
 
         try:
-            result = await Runner.run(
-                agent,
-                input=f"{user_prompt}\n\n**Cutoff Date:** {cutoff_date}",
-                context=context,
-                max_turns=self.max_turns
-            )
+            with trace('Recursive Superforecaster') as t:
+                result = await Runner.run(
+                    agent,
+                    input=f"{user_prompt}\n\n**Cutoff Date:** {cutoff_date}",
+                    context=context,
+                    max_turns=self.max_turns
+                )
+                t.finish()
 
-            response_text = result.final_output or ""
-            updated_messages = result.to_input_list()
+                response_text = result.final_output or ""
+                updated_messages = result.to_input_list()
 
-            return SamplerResponse(
-                response_text=response_text,
-                response_metadata={"usage": None},
-                actual_queried_message_list=updated_messages,
-            )
+                return SamplerResponse(
+                    response_text=response_text,
+                    response_metadata={"usage": None},
+                    actual_queried_message_list=updated_messages,
+                    spans=t.trace_data["spans"],
+                )
         except Exception as e:
             return SamplerResponse(
                 response_text=f"Error: {str(e)}",
                 response_metadata={"usage": None, "error": str(e)},
                 actual_queried_message_list=message_list,
+                spans=t.trace_data["spans"],
             )
 
     def __call__(self, message_list: MessageList, cutoff_date: str = None) -> SamplerResponse:

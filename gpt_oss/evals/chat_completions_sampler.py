@@ -9,7 +9,6 @@ from openai import OpenAI
 
 from .mcp_client_manager import MCPClientManager
 from .types import MessageList, SamplerBase, SamplerResponse
-from ..subagents import FORECASTER_CONFIG, execute_subagent_chat_completions
 
 
 OPENAI_SYSTEM_MESSAGE_API = "You are a helpful assistant."
