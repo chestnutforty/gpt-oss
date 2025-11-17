@@ -2,53 +2,80 @@ import re
 import ast
 import numpy as np
 from datasets import load_from_disk
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from . import report
 from .types import Eval, EvalResult, SamplerBase, SingleEvalResult
-
+from .utils import load_prompt
 
 def extract_binary_probability(response_text: str) -> tuple[float | None, list[float] | None]:
     r"""Extract binary probability and uncertainty interval from response.
 
-    Supports formats:
-    - \prediction{0.XX, 'interval': [lower, upper]}
-    - \prediction{0.XX} (legacy format, interval will be None)
+    Format: \prediction{"probability": 0.xx, "interval": [lower, upper]}
 
     Returns:
         Tuple of (point_estimate, interval) where interval is [lower, upper] or None
     """
-    match = re.search(
-        r"\\prediction\{([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\s*,\s*['\"]interval['\"]\s*:\s*\[([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\s*,\s*([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\]\}",
-        response_text
-    )
-    if match:
-        try:
-            point_estimate = float(match.group(1))
-            lower = float(match.group(2))
-            upper = float(match.group(3))
+    # Find \prediction{ and then match braces
+    pattern = r'\\prediction\{'
+    start_match = re.search(pattern, response_text)
 
-            # Convert from percentage if needed
-            if point_estimate > 1.0:
-                point_estimate = point_estimate / 100.0
-            if lower > 1.0:
-                lower = lower / 100.0
-            if upper > 1.0:
-                upper = upper / 100.0
+    if not start_match:
+        return None, None
 
-            return point_estimate, [lower, upper]
-        except ValueError:
-            pass
+    # Find matching braces - start counting from the opening brace
+    start_idx = start_match.end()
+    brace_count = 1
+    idx = start_idx
 
-    return None, None
+    while idx < len(response_text) and brace_count > 0:
+        if response_text[idx] == '{':
+            brace_count += 1
+        elif response_text[idx] == '}':
+            brace_count -= 1
+        idx += 1
+
+    if brace_count != 0:
+        return None, None
+
+    try:
+        # Parse as dict - add surrounding braces if needed
+        content_str = response_text[start_idx:idx-1].strip()
+        # Check if content already starts with { (double-brace format) or needs wrapping (single-brace format)
+        if not content_str.startswith('{'):
+            content_str = '{' + content_str + '}'
+        pred_dict = ast.literal_eval(content_str)
+
+        if not isinstance(pred_dict, dict) or 'probability' not in pred_dict:
+            return None, None
+
+        point_estimate = float(pred_dict['probability'])
+
+        # Convert from percentage if needed
+        if point_estimate > 1.0:
+            point_estimate = point_estimate / 100.0
+
+        # Extract interval if present
+        interval = None
+        if 'interval' in pred_dict:
+            interval_data = pred_dict['interval']
+            if isinstance(interval_data, list) and len(interval_data) == 2:
+                lower, upper = float(interval_data[0]), float(interval_data[1])
+                if lower > 1.0:
+                    lower = lower / 100.0
+                if upper > 1.0:
+                    upper = upper / 100.0
+                interval = [lower, upper]
+
+        return point_estimate, interval
+    except (ValueError, SyntaxError, TypeError):
+        return None, None
 
 
 def extract_multiple_choice_probabilities(response_text: str, outcomes: list[str]) -> tuple[dict[str, float] | None, dict[str, list[float]] | None]:
     r"""Extract multiple choice probabilities and uncertainty intervals from response.
 
-    Supports formats:
-    - \prediction{[{'option_a': 0.xx, 'interval': [lower, upper]}, {'option_b': 0.yy, 'interval': [lower, upper]}]}
-    - \prediction{[{'option_a': 0.xx}, {'option_b': 0.yy}]} (legacy, no intervals)
+    Format: \prediction{[{"option_a": 0.xx, "interval": [lower, upper]}, {"option_b": 0.yy, "interval": [lower, upper]}]}
 
     Returns:
         Tuple of (option_probs, option_intervals) where:
@@ -62,7 +89,7 @@ def extract_multiple_choice_probabilities(response_text: str, outcomes: list[str
     if not start_match:
         return None, None
 
-    # Find matching braces starting from the first {
+    # Find matching braces starting from the opening brace
     start_idx = start_match.end()
     brace_count = 1
     idx = start_idx
@@ -128,8 +155,10 @@ def extract_multiple_choice_probabilities(response_text: str, outcomes: list[str
 def extract_numeric_percentiles(response_text: str) -> list[dict] | None:
     r"""Extract numeric percentiles from response.
 
-    Looks for pattern: \prediction{[{"percentile": 10, "value": 5.2}, ...]}
-    Returns: [{"percentile": 10, "value": 5.2}, ...]
+    Format: \prediction{[{"percentile": 0, "value": 2.0}, {"percentile": 10, "value": 5.2}, ..., {"percentile": 100, "value": 12.0}]}
+    Returns: [{"percentile": 0, "value": 2.0}, ...]
+
+    The first percentile must be 0 and the last must be 100, with at least 6 additional percentiles in between.
     """
     # Find \prediction{ and then match braces
     pattern = r'\\prediction\{'
@@ -201,15 +230,6 @@ def calculate_binary_log_score(probability: float, ground_truth: float) -> float
 
 
 def calculate_brier_score(probability: float, ground_truth: float) -> float:
-    """Calculate Brier score for binary question.
-
-    Args:
-        probability: Predicted probability (0-1)
-        ground_truth: Actual outcome (0.0 or 1.0)
-
-    Returns:
-        -((p - y)^2)
-    """
     return -((probability - ground_truth) ** 2)
 
 
@@ -435,18 +455,12 @@ class MetaculusEval(Eval):
 
     def __call__(self, sampler: SamplerBase, checkpoint_path=None) -> EvalResult:
         def fn(row: dict):
-            user_message = f"""Question:
-{row['question']}
-
-Description:
-{row['description']}
-
-Resolution Criteria:
-{row['resolution_criteria']}
-
-Question Type:
-{row['question_type']}
-"""
+            user_message = load_prompt("user.md").format(
+                question=row['question'],
+                description=row['description'],
+                resolution_criteria=row['resolution_criteria'],
+                question_type=row['question_type'],
+            )
             if row['question_type'] == 'multiple_choice':
                 user_message += f"""\n\nPossible Options:\n{row['outcomes']}"""
                 
