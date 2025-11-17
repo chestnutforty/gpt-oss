@@ -35,7 +35,8 @@ class ApiSampler(SamplerBase):
         mcp_servers: list[tuple[str, int]] | list[tuple[str, dict[str, Any]]] | None = None,
         enable_internal_browser: bool = False,
         enable_internal_python: bool = False,
-        enable_subagents: bool = False,
+        max_turns: int = 10,
+        **kwargs: Any,
     ):
         self.model = model
         self.developer_message = developer_message
@@ -44,7 +45,7 @@ class ApiSampler(SamplerBase):
         self.base_url = base_url
         self.reasoning_model = reasoning_model
         self.reasoning_effort = reasoning_effort
-        
+        self.max_turns = max_turns
         
         self.tools = []
         if enable_internal_browser:
@@ -79,9 +80,6 @@ class ApiSampler(SamplerBase):
         set_tracing_disabled(False)
         set_default_openai_client(self.client)
         set_default_openai_api("responses")
-        
-    def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
-        return {"role": role, "content": content}
 
     def _run_async(self, coro):
         """Run async code in sync context."""
@@ -125,7 +123,7 @@ class ApiSampler(SamplerBase):
 
         return self._thread_local.mcp_servers
 
-    def _convert_messages(self, message_list: MessageList) -> tuple[str | None, str]:
+    def _convert_messages(self, message_list: MessageList, mcp_servers: list[MCPServerSse]) -> tuple[str | None, str]:
         instructions = self.developer_message
         user_prompt = ""
 
@@ -134,14 +132,19 @@ class ApiSampler(SamplerBase):
             if msg.get("role") == "user":
                 user_prompt = msg.get("content", "")
                 break
+            
+        server_instructions = ""
+        for server in mcp_servers:
+            server_instructions += f"\n\n## {server.name}\n\n{server.server_initialize_result.instructions}"
+        instructions = instructions.format(server_instructions=server_instructions)
 
         return instructions, user_prompt
 
     async def _execute_async(self, message_list: MessageList, context: AgentEvalContext) -> SamplerResponse:
         mcp_servers = await self._ensure_mcp_connected()
 
-        instructions, user_prompt = self._convert_messages(message_list)
-
+        instructions, user_prompt = self._convert_messages(message_list, mcp_servers)
+        
         # Reasoning model settings
         model_settings = ModelSettings()
         if self.reasoning_model and self.reasoning_effort:
@@ -158,13 +161,11 @@ class ApiSampler(SamplerBase):
         )
         
         try:
-            result = await Runner.run(agent, user_prompt, max_turns=200, context=context)
+            result = await Runner.run(agent, user_prompt, max_turns=self.max_turns, context=context)
             response_text = result.final_output or ""
 
             updated_messages = result.to_input_list()
             
-            print('response_text', response_text)
-
             return SamplerResponse(
                 response_text=response_text,
                 response_metadata={"usage": None},

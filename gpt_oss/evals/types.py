@@ -20,6 +20,9 @@ class SamplerBase:
     Base class for defining a sampling model, which can be evaluated,
     or used as part of the grading process.
     """
+    
+    def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
+        return {"role": role, "content": content}
 
     def __call__(
         self, 

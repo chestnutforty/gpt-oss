@@ -13,11 +13,11 @@ class BasicEval(Eval):
             "answer": "hi, how can i help?",
         }]
 
-    def __call__(self, sampler: SamplerBase, checkpoint_path=None) -> EvalResult:
+    def __call__(self, sampler: SamplerBase, checkpoint_path=None, cutoff_date: str = None) -> EvalResult:
         def fn(row: dict):
             sampler_response = sampler([
                 sampler._pack_message(content=row["question"], role="user")
-            ])
+            ], cutoff_date=cutoff_date)
             response_text = sampler_response.response_text
             extracted_answer = response_text
             actual_queried_prompt_messages = sampler_response.actual_queried_message_list

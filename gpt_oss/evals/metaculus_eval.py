@@ -10,13 +10,17 @@ from .types import Eval, EvalResult, SamplerBase, SingleEvalResult
 
 def extract_binary_probability(response_text: str) -> float | None:
     r"""Extract binary probability from response using \prediction{0.XX} pattern."""
-    match = re.search(r'\\prediction\{([0-9.]+)\}', response_text)
+    # Match valid float patterns: integers (5), decimals (0.5, .5), or scientific notation
+    match = re.search(r'\\prediction\{([0-9]*\.?[0-9]+(?:[eE][+-]?[0-9]+)?)\}', response_text)
     if match:
-        point_estimate = float(match.group(1))
-        # Handle percentage format (convert to 0-1 range if needed)
-        if point_estimate > 1.0:
-            point_estimate = point_estimate / 100.0
-        return point_estimate
+        try:
+            point_estimate = float(match.group(1))
+            if point_estimate > 1.0:
+                point_estimate = point_estimate / 100.0
+            return point_estimate
+        except ValueError:
+            # If conversion fails, return None
+            return None
     return None
 
 
@@ -303,7 +307,7 @@ class MetaculusEval(Eval):
                 if cutoff_type not in cutoff_field_map:
                     continue
 
-                field_name, days_ago = cutoff_field_map[cutoff_type]
+                field_name, _ = cutoff_field_map[cutoff_type]
                 cutoff_price = question.get(field_name)
 
                 # Skip if cutoff price is not available
@@ -314,11 +318,10 @@ class MetaculusEval(Eval):
                 snapshot_datetime = question.get("snapshot_datetime")
                 if snapshot_datetime:
                     snapshot_dt = datetime.fromisoformat(snapshot_datetime)
-                    cutoff_dt = snapshot_dt - timedelta(days=days_ago)
-                    cutoff_date = cutoff_dt.strftime("%Y-%m-%d")
+                    cutoff_date = snapshot_dt.strftime("%Y-%m-%d")
                 else:
                     cutoff_date = None
-
+                    
                 example = {
                     "question": question["question"],
                     "question_type": question["question_type"],
@@ -379,7 +382,7 @@ Question Type:
 
             sampler_response = sampler([
                 sampler._pack_message(content=user_message, role="user")
-            ])
+            ], cutoff_date=row['cutoff_date'])
             response_text = sampler_response.response_text
             actual_queried_prompt_messages = sampler_response.actual_queried_message_list
 

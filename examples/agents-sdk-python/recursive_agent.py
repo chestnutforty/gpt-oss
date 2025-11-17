@@ -73,7 +73,7 @@ async def create_subagent(
 
     specialist = ctx.context.base_agent.clone(
         name=f"Forecaster", 
-        instructions=UNIFIED_PROMPT.format(max_depth=ctx.context.max_depth, current_depths=ctx.context.current_depth)
+        instructions=UNIFIED_PROMPT.format(max_depth=ctx.context.max_depth, current_depth=ctx.context.current_depth)
     )
 
     prompt = f"""
@@ -97,12 +97,12 @@ async def create_subagent(
     return f"\n{'='*60}\n**Subquestion:** {subquestion}\n\n{result.final_output}\n{'='*60}\n"
 
 
-def create_recursive_agent(model: str, reasoning_effort: str, summary: str, verbosity: str, max_depth: int, current_depths: int, mcp_servers=None):
+def create_recursive_agent(model: str, reasoning_effort: str, summary: str, verbosity: str, max_depth: int, current_depth: int, mcp_servers=None):
     return Agent[ForecastingContext](
         model=model,
         model_settings=ModelSettings(reasoning=Reasoning(effort=reasoning_effort, summary=summary), verbosity=verbosity, parallel_tool_calls=True),
         name="Superforecaster",
-        instructions=UNIFIED_PROMPT.format(max_depth=max_depth, current_depths=current_depths),
+        instructions=UNIFIED_PROMPT.format(max_depth=max_depth, current_depth=current_depth),
         tools=[create_subagent],
         mcp_servers=mcp_servers or []
     )

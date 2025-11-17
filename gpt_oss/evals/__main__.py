@@ -19,6 +19,7 @@ from .chat_completions_sampler import (
 from .responses_sampler import ResponsesSampler
 from .api_sampler import ApiSampler
 from .metaculus_eval import MetaculusEval
+from .recursive_sampler import RecursiveSampler
 
 
 def main():
@@ -42,7 +43,7 @@ def main():
     parser.add_argument(
         "--sampler",
         type=str,
-        choices=["responses", "chat_completions", "api"],
+        choices=["responses", "chat_completions", "api", "recursive"],
         default="responses",
         help="Sampler backend to use for models.",
     )
@@ -98,11 +99,6 @@ def main():
         help="Enable internal python tool (code_interpreter) handled by API server",
     )
     parser.add_argument(
-        "--enable-subagents",
-        action="store_true",
-        help="Enable subagent tools (e.g., call_forecaster) that delegate to specialized agents",
-    )
-    parser.add_argument(
         "--developer-message",
         type=str,
         help="Developer message md file in prompts/ directory",
@@ -149,6 +145,21 @@ def main():
         help="Which cutoff dates to use for Metaculus eval",
     )
 
+    # Recursive sampler arguments
+    parser.add_argument(
+        "--max-depth",
+        type=int,
+        default=2,
+        help="Max depth for recursive sampler",
+    )
+
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=200,
+        help="Max turns for recursive sampler",
+    )
+
     args = parser.parse_args()
     
     developer_message = None
@@ -180,6 +191,8 @@ def main():
         sampler_cls = ChatCompletionsSampler
     elif args.sampler == "api":
         sampler_cls = ApiSampler
+    elif args.sampler == "recursive":
+        sampler_cls = RecursiveSampler
     else:
         raise ValueError(f"Invalid sampler: {args.sampler}")
 
@@ -196,7 +209,8 @@ def main():
                 mcp_servers=mcp_servers if mcp_servers else None,
                 enable_internal_browser=args.enable_internal_browser,
                 enable_internal_python=args.enable_internal_python,
-                enable_subagents=args.enable_subagents,
+                max_depth=args.max_depth,
+                max_turns=args.max_turns,
             )
 
     print(f"Running with args {args}")
@@ -253,7 +267,7 @@ def main():
     for model_name, sampler in models.items():
         model_name = model_name.replace("/", "__")
         for eval_name, eval_obj in evals.items():
-            file_stem = f"{eval_name}_{model_name}_reasoning_effort_{args.reasoning_effort}_temp{args.temperature}_python_{args.enable_internal_python}_browser_{args.enable_internal_browser}_subagents_{args.enable_subagents}_mcp_{args.mcp}"
+            file_stem = f"{eval_name}_{model_name}_reasoning_effort_{args.reasoning_effort}_temp{args.temperature}_python_{args.enable_internal_python}_browser_{args.enable_internal_browser}_mcp_{args.mcp}"
             checkpoint_path = checkpoint_dir / (file_stem + ".json")
 
             # If not resuming, delete any existing checkpoint to start fresh
@@ -273,7 +287,6 @@ def main():
                 "mcp_servers": [{"name": name, "port": port} for name, port in mcp_servers] if mcp_servers else [],
                 "enable_internal_browser": args.enable_internal_browser,
                 "enable_internal_python": args.enable_internal_python,
-                "enable_subagents": args.enable_subagents,
             }
             if result.metadata is None:
                 result.metadata = {}

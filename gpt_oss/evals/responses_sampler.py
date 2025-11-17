@@ -29,6 +29,7 @@ class ResponsesSampler(SamplerBase):
         mcp_servers: list[tuple[str, int]] | None = None,
         enable_internal_browser: bool = False,
         enable_internal_python: bool = False,
+        **kwargs: Any,
     ):
         self.client = OpenAI(base_url=base_url, timeout=24*60*60, api_key=os.getenv("OPENAI_API_KEY", "EMPTY"))
         self.model = model
@@ -56,9 +57,6 @@ class ResponsesSampler(SamplerBase):
             self.internal_tools.append({
                 "type": "web_search"
             })
-
-    def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
-        return {"role": role, "content": content}
 
     def _run_async(self, coro):
         try:
@@ -111,6 +109,7 @@ class ResponsesSampler(SamplerBase):
             }
             if self.developer_message:
                 request_kwargs["instructions"] = self.developer_message
+                
             if self.reasoning_model:
                 request_kwargs["reasoning"] = (
                     {"effort": self.reasoning_effort} if self.reasoning_effort else None
@@ -129,9 +128,9 @@ class ResponsesSampler(SamplerBase):
                 for item in response.output
             )
 
-            # print(f"Iteration {iteration}: has_tool_calls={has_tool_calls}, has_message_output={has_message_output}")
-            # print(f"Output items: {[item.type for item in response.output if hasattr(item, 'type')]}")
-            # print("Tool Calls:", [item for item in response.output if hasattr(item, 'type') and item.type == "function_call"])
+            print(f"Iteration {iteration}: has_tool_calls={has_tool_calls}, has_message_output={has_message_output}")
+            print(f"Output items: {[item.type for item in response.output if hasattr(item, 'type')]}")
+            print("Tool Calls:", [item for item in response.output if hasattr(item, 'type') and item.type == "function_call"])
 
             for output in response.output:
                 current_input.append(output.model_dump(mode="json"))
@@ -161,7 +160,7 @@ class ResponsesSampler(SamplerBase):
         # Max iterations reached - return last response
         return response, current_input
 
-    def __call__(self, message_list: MessageList, tools: list[dict[str, Any]] = []) -> SamplerResponse:
+    def __call__(self, message_list: MessageList, tools: list[dict[str, Any]] = [], cutoff_date: str = None) -> SamplerResponse:
         # Get MCP tools if configured
         mcp_tools = None
         mcp_manager = None
@@ -177,7 +176,7 @@ class ResponsesSampler(SamplerBase):
         while True:
             try:
                 response, message_list = self._run_async(
-                    self._execute_tool_loop_async(message_list, all_tools, mcp_manager)
+                    self._execute_tool_loop_async(message_list, all_tools, mcp_manager, cutoff_date)
                 )
 
                 return SamplerResponse(

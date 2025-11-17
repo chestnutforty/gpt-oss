@@ -9,6 +9,7 @@ from openai import OpenAI
 
 from .mcp_client_manager import MCPClientManager
 from .types import MessageList, SamplerBase, SamplerResponse
+from ..subagents import FORECASTER_CONFIG, execute_subagent_chat_completions
 
 
 OPENAI_SYSTEM_MESSAGE_API = "You are a helpful assistant."
@@ -33,6 +34,7 @@ class ChatCompletionsSampler(SamplerBase):
         mcp_servers: list[tuple[str, int]] | None = None,
         enable_internal_browser: bool = False,
         enable_internal_python: bool = False,
+        **kwargs: Any,
     ):
         self.client = OpenAI(base_url=base_url, timeout=24 * 60 * 60)
         self.model = model
@@ -46,9 +48,6 @@ class ChatCompletionsSampler(SamplerBase):
         # Use thread-local storage for MCP manager since it contains async objects
         # tied to a specific event loop. Each thread needs its own instance.
         self._thread_local = threading.local() if mcp_servers else None
-
-    def _pack_message(self, role: str, content: Any) -> dict[str, Any]:
-        return {"role": str(role), "content": content}
 
     def _run_async(self, coro):
         """Run async code in sync context."""
