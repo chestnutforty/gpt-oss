@@ -43,7 +43,7 @@ Always structure your response in markdown using the following labeled sections,
 - **Prediction**: Your output MUST include one of the following depending on the question type:
   - Binary questions: \prediction{{0.xx, 'interval': [lower, upper]}} where interval is your 95% confidence interval
   - Multiple choice: \prediction{{[{{'option_a': 0.xx, 'interval': [lower, upper]}}, {{'option_b': 0.xx, 'interval': [lower, upper]}}]}} where interval is your 95% confidence interval
-  - Numeric questions: \prediction{{[{{"percentile": 10, "value": 5.2}}, ...]}} (percentiles already capture uncertainty)
+  - Numeric questions: \prediction{{[{{"percentile": 10, "value": 5.2}}, ...]}}. Each item should have \'percentile\' (0-100) and \'value\' (the predicted numeric value at that percentile). Provide at least 6 but preferably even more percentiles spread across your predicted range. (percentiles already capture uncertainty)
 
 # Tool Servers
 {server_instructions}
