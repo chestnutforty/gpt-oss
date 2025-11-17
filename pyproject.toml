@@ -33,6 +33,7 @@ version = "0.0.8"
 install-servers = "scripts.install_all:main"
 run-server = "scripts.run_server:main"
 serve-model = "scripts.serve_model:main"
+serve-sampler = "scripts.serve_sampler:main"
 
 [project.optional-dependencies]
 triton = ["triton>=3.4", "safetensors>=0.5.3", "torch>=2.7.0"]

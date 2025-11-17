@@ -18,17 +18,13 @@ class AgentEvalContext:
     cutoff_date: str = datetime.now().strftime("%Y-%m-%d")
 
 
-class ApiSampler(SamplerBase):
-    """
-    Sample using OpenAI's agents SDK with SSE MCP servers.
-    Leverages built-in tool loop and MCP integration.
-    """
+class FlatSampler(SamplerBase):
 
     def __init__(
         self,
         model: str,
         developer_message: str | None = None,
-        temperature: float = 1.0,
+        temperature: float = 0.0,
         max_tokens: int = 131_072,
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
@@ -83,7 +79,7 @@ class ApiSampler(SamplerBase):
         set_tracing_disabled(False)
         set_default_openai_client(self.client)
         set_default_openai_api("responses")
-        add_trace_processor(LocalJSONTracingProcessor(output_dir="traces"))
+        add_trace_processor(LocalJSONTracingProcessor(output_dir="agent_traces"))
 
     def _run_async(self, coro):
         """Run async code in sync context."""
@@ -155,8 +151,9 @@ class ApiSampler(SamplerBase):
             model_settings = ModelSettings(reasoning=Reasoning(effort=self.reasoning_effort, summary='detailed'), verbosity=self.verbosity, parallel_tool_calls=True)
             
 
+        mcp_names = ','.join([name for name, _ in self.mcp_server_configs])
         agent = Agent(
-            name=f'model_{self.model}_mcp_{','.join([name for name, _ in self.mcp_server_configs])}_tools_{','.join([tool.__class__.__name__ for tool in self.tools])}',
+            name=f'model_{self.model}_mcp_{mcp_names}',
             instructions=instructions,
             model=self.model,
             mcp_servers=mcp_servers,
