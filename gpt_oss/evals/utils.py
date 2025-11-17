@@ -10,14 +10,7 @@ They ensure that CDFs are properly formatted and meet all Metaculus requirements
 import datetime
 import numpy as np
 from typing import Dict, Any
-from types import SimpleNamespace
-
-import weave
-import art
-from openai import AsyncOpenAI
-from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_message import ChatCompletionMessage
-from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall, Function
+from pathlib import Path
 
 
 def scenario_to_metaculus_format(scenario: Any) -> Dict[str, Any]:
@@ -353,135 +346,13 @@ def calculate_log_score_from_cdf(
 
     return log_score, pdf_internal
 
-async def get_llm_completion(
-    model: art.Model,
-    messages: list[dict],
-    tools: list[dict],
-    temperature: float = 1.0,
-    max_completion_tokens: int | None = None,
-    reasoning_effort: str | None = None,
-    previous_response_id: str | None = None,
-):
-    """Get LLM completion using responses API (GPT) or chat completions API (non-GPT)."""
-    client = AsyncOpenAI(api_key=model.inference_api_key, base_url=model.inference_base_url)
-    model_name = model.inference_model_name or model.name
+    
+def load_prompt(filename: str) -> str:
+    """Load a prompt file from gpt_oss/prompts/."""
+    prompts_dir = Path(__file__).parent.parent.parent / "gpt_oss" / "prompts"
+    prompt_path = prompts_dir / filename
 
-    if "gpt" not in model_name.lower():
-        return await client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            temperature=temperature,
-            tools=tools,
-            max_completion_tokens=max_completion_tokens,
-        )
+    if not prompt_path.exists():
+        raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
 
-    # GPT models use responses API
-    api_params = {
-        "model": model_name,
-        "input": _convert_messages_to_responses_input(messages),
-        "temperature": temperature,
-        "tools": _convert_tools_to_responses_format(tools),
-        "max_output_tokens": max_completion_tokens,
-        "tool_choice": "auto",
-        "store": True,
-    }
-    if previous_response_id:
-        api_params["previous_response_id"] = previous_response_id
-    if reasoning_effort:
-        api_params["reasoning"] = {"effort": reasoning_effort}
-
-    return _convert_responses_to_chat_completion(await client.responses.create(**api_params))
-
-
-def _convert_messages_to_responses_input(messages: list[dict]) -> list:
-    """Convert chat completions messages to responses API format."""
-    responses_input = []
-    for msg in messages:
-        role = msg.get("role")
-        if role == "tool":
-            responses_input.append({
-                "type": "function_call_output",
-                "call_id": msg.get("tool_call_id"),
-                "output": msg.get("content", "")
-            })
-        elif role == "assistant" and msg.get("tool_calls"):
-            if msg.get("content"):
-                responses_input.append({"role": "assistant", "content": msg["content"]})
-
-            responses_input.extend([
-                {
-                    "type": "function_call",
-                    "call_id": tc["id"],
-                    "name": tc["function"]["name"],
-                    "arguments": tc["function"]["arguments"]
-                }
-                for tc in msg["tool_calls"]
-            ])
-        else:
-            responses_input.append(msg)
-    return responses_input
-
-
-def _convert_tools_to_responses_format(tools: list[dict]) -> list[dict]:
-    """Convert tool schemas from chat completions to responses API format."""
-    return [
-        {
-            "type": "function",
-            "name": tool["function"]["name"],
-            "description": tool["function"].get("description", ""),
-            "parameters": tool["function"].get("parameters", {}),
-        }
-        if tool.get("type") == "function" and "function" in tool
-        else tool
-        for tool in tools
-    ]
-
-
-def _convert_responses_to_chat_completion(response):
-    """Convert responses API format to chat completions format."""
-    output = getattr(response, 'output', [])
-
-    content_parts = []
-    tool_calls = []
-
-    for item in output:
-        if not hasattr(item, 'type'):
-            continue
-
-        if item.type == "function_call":
-            tool_calls.append(ChatCompletionMessageToolCall(
-                id=item.call_id,
-                type="function",
-                function=Function(name=item.name, arguments=item.arguments)
-            ))
-        elif item.type == "message" and hasattr(item, 'content'):
-            # Handle both list and single content formats
-            if isinstance(item.content, list):
-                content_parts.extend([
-                    c.text for c in item.content
-                    if hasattr(c, 'text') and hasattr(c, 'type') and c.type == "output_text"
-                ])
-            elif hasattr(item.content, 'text'):
-                # Single content item (not a list)
-                content_parts.append(item.content.text)
-
-    content = "\n".join(content_parts) if content_parts else None
-
-    message = ChatCompletionMessage(
-        content=content,
-        tool_calls=tool_calls if tool_calls else None,
-        role="assistant"
-    )
-
-    choice = Choice(
-        message=message,
-        finish_reason="stop" if response.status == "completed" else response.status,
-        index=0
-    )
-
-    return SimpleNamespace(
-        choices=[choice],
-        id=response.id,
-        created=getattr(response, 'created_at', None),
-        model=getattr(response, 'model', None)
-    )
+    return prompt_path.read_text()
