@@ -92,7 +92,7 @@ class RecursiveSampler(SamplerBase):
         self,
         model: str,
         developer_message: str | None = None,
-        temperature: float = 1.0,
+        temperature: float = 0.0,
         max_tokens: int = 131_072,
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
@@ -135,7 +135,7 @@ class RecursiveSampler(SamplerBase):
         set_tracing_disabled(False)
         set_default_openai_client(self.client)
         set_default_openai_api("responses")
-        add_trace_processor(LocalJSONTracingProcessor(output_dir="traces"))
+        add_trace_processor(LocalJSONTracingProcessor(output_dir="agent_traces"))
 
     def _run_async(self, coro):
         """Run async code in sync context."""

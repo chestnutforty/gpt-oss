@@ -21,7 +21,7 @@ class ResponsesSampler(SamplerBase):
         self,
         model: str,
         developer_message: str | None = None,
-        temperature: float = 1.0,
+        temperature: float = 0.0,
         max_tokens: int = 131_072,
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,

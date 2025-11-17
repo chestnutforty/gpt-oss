@@ -23,9 +23,9 @@ class ChatCompletionsSampler(SamplerBase):
 
     def __init__(
         self,
-        model: str = "gpt-3.5-turbo",
+        model: str = "gpt-5-mini",
         developer_message: str | None = None,
-        temperature: float = 0.5,
+        temperature: float = 0.0,
         max_tokens: int = 1024,
         reasoning_model: bool = False,
         reasoning_effort: str | None = None,
