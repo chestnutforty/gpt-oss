@@ -45,11 +45,11 @@ async def create_subagent(
     subquestion: str,
     question_type: str = "binary",
 ) -> str:
-    """Create a subagent to make a prediction for a subquestion.
+    """Create a subagent to make a prediction for a subquestion. The subagent will return a full prediciton report including its final prediction in \prediction{} with the correct formatting depending on the question type in your output. The subagent has access to the same tools as you.
 
     Args:
-        subquestion: Specific question to predict (make it clear and self-contained)
-        question_type: Type of question - one of "binary", "multiple_choice", or "numeric"
+        subquestion: Specific question to predict (make it clear and self-contained). Be concise in formulating the subquestion. Subquestions should be mutually exclusive and answer different causal components of the overall question.
+        question_type: Type of question - one of "binary", "multiple_choice", or "numeric". This is used to instruct the subagent to format the final prediction in \prediction{} with the correct formatting.
 
     Returns:
         Prediction with reasoning and conclusions
