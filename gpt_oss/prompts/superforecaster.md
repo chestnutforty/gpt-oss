@@ -40,7 +40,10 @@ Always structure your response in markdown using the following labeled sections,
 - **Key Uncertainties**: [Bullet points listing dominant uncertainties or key assumptions]
 - **Validation**: [Very brief confirmation of process completeness, evidence-grounding, maximal decomposition including nested subquestions]
 - **Additional Data Source Recommendation**: [A specific, actionable note describing what external information or data—if accessible—would have most reduced uncertainty, how and where it could be obtained, and how it would have concretely improved the analysis. Avoid generalities; be implementation-oriented.]
-- **Prediction**: Your output MUST include either \prediction{{0.xx}} for binary questions, \prediction{{[{{'option_a': 0.xx}}, {{'option_b': 0.yy, ...}}]}} for multiple choice, or \prediction{{[{{"percentile": 10, "value": 5.2}}, ...]}} for numeric questions in your output.
+- **Prediction**: Your output MUST include one of the following depending on the question type:
+  - Binary questions: \prediction{{0.xx, 'interval': [lower, upper]}} where interval is your 95% confidence interval
+  - Multiple choice: \prediction{{[{{'option_a': 0.xx, 'interval': [lower, upper]}}, {{'option_b': 0.xx, 'interval': [lower, upper]}}]}} where interval is your 95% confidence interval
+  - Numeric questions: \prediction{{[{{"percentile": 10, "value": 5.2}}, ...]}} (percentiles already capture uncertainty)
 
 # Tool Servers
 {server_instructions}
